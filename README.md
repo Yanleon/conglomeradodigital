@@ -1,4 +1,4 @@
-# ¡Bienvenido a Halltec Ecommerce!
+# ¡Bienvenido a Ecommerce!
 
 Estamos encantados de que formes parte de nuestra comunidad. Con nuestra plataforma, podrás gestionar tu tienda en línea de manera eficiente y potenciar tu negocio digital.
 
@@ -10,7 +10,6 @@ Estamos encantados de que formes parte de nuestra comunidad. Con nuestra platafo
 ## 📖 Documentación y soporte
 Para ayudarte a empezar, hemos preparado una documentación completa donde encontrarás guías paso a paso sobre cómo configurar y gestionar tu ecommerce:  
 
-📘 **Documentación:** [https://halltec-ecommerce-doc.vercel.app/](https://halltec-ecommerce-doc.vercel.app/)
 
 # 📦 Guía de Instalación
 

@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'cashondelivery'  => [
+    'cashondelivery' => [
         'code'        => 'cashondelivery',
         'title'       => 'Cash On Delivery',
         'description' => 'Cash On Delivery',
@@ -10,7 +10,7 @@ return [
         'sort'        => 1,
     ],
 
-    'moneytransfer'   => [
+    'moneytransfer' => [
         'code'        => 'moneytransfer',
         'title'       => 'Money Transfer',
         'description' => 'Money Transfer',
@@ -18,4 +18,5 @@ return [
         'active'      => true,
         'sort'        => 2,
     ],
+
 ];

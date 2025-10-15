@@ -94,7 +94,10 @@
             "Webkul\\Tax\\": "packages/Webkul/Tax/src",
             "Webkul\\Theme\\": "packages/Webkul/Theme/src",
             "Webkul\\User\\": "packages/Webkul/User/src",
-            "Webkul\\Epayco\\": "packages/Webkul/Epayco/src"
+            "Webkul\\Epayco\\": "packages/Webkul/Epayco/src",
+            "Webkul\\Bold\\": "packages/Webkul/Bold/src"
+            
+
             
 
         }

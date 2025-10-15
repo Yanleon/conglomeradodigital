@@ -1,0 +1,11 @@
+{
+    "name": "webkul/bold",
+    "description": "Bold Payment for Bagisto",
+    "type": "bagisto-module",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Webkul\\Bold\\": ""
+        }
+    }
+}
