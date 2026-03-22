@@ -84,7 +84,7 @@ class Ipn
      */
     protected function getOrder()
     {
-        return $this->order = $this->orderRepository->findOneByField(['id' => $this->post['x_id_invoice']]);
+        return $this->order = $this->orderRepository->findOneByField(['id' => $this->post['x_id_invoice'] ?? null]);
     }
 
     /**
@@ -97,53 +97,76 @@ class Ipn
         $response = [];
         $x_ref_payco      = $this->post['x_ref_payco'];
         $x_transaction_id = $this->post['x_transaction_id'];
-        $x_amount         = (int)$this->post['x_amount'];
+        $x_amount_raw     = $this->post['x_amount'];
+        $x_amount         = $this->normalizeAmount($x_amount_raw);
         $x_currency_code  = $this->post['x_currency_code'];
         $x_signature      = $this->post['x_signature'];
 
-        $signature = hash('sha256', $this->cust_id_client . '^' . $this->p_key . '^' . $x_ref_payco . '^' . $x_transaction_id . '^' . $x_amount . '^' . $x_currency_code);
+        if (! $this->order) {
+            return response()->json([
+                'alert' => 'error',
+                'message' => 'Orden no encontrada para la notificación de ePayco.',
+                'status' => 'not_found',
+            ], 404);
+        }
+
+        $signature = hash('sha256', $this->cust_id_client . '^' . $this->p_key . '^' . $x_ref_payco . '^' . $x_transaction_id . '^' . $x_amount_raw . '^' . $x_currency_code);
 
         $numOrder = $this->order->id;
-        $valueOrder = (int)round($this->order->grand_total);
+        $valueOrder = $this->normalizeAmount($this->order->grand_total);
 
         $x_response     = $this->post['x_response'] == 'Aceptada' ? "paid" : $this->post['x_response'];
         $x_id_invoice   = (int)$this->post['x_id_invoice'];
 
         // se valida que el número de orden y el valor coincidan con los valores recibidos
-        if ($x_id_invoice === $numOrder && $x_amount === $valueOrder) {
-            //Validamos la firma
-            if ($x_signature == $signature) {
-                // se valida que la orden no haya sido procesada anteriormente
+        if ($x_id_invoice !== $numOrder || $x_amount !== $valueOrder) {
+            return response()->json([
+                "alert" => "error",
+                "message" => "El valor o la orden no coinciden con lo reportado por ePayco.",
+                "status" => "pending",
+            ], 422);
+        }
 
-                    $x_cod_response = $this->post['x_cod_response'];
+        if ($x_signature !== $signature) {
+            return response()->json([
+                "alert" => "error",
+                "message" => "Firma inválida para la notificación de ePayco.",
+                "status" => "pending",
+            ], 422);
+        }
 
-                    $statusMap = [
-                        1 => ["alert" => "success", "message" => "Transacción aceptada", "status" => "paid"],
-                        2 => ["alert" => "error", "message" => "Transacción rechazada", "status" => "canceled"],
-                        3 => ["alert" => "warning", "message" => "Transacción pendiente", "status" => "pending_payment"],
-                        4 => ["alert" => "error", "message" => "Transacción fallida", "status" => "canceled"]
-                    ];
+        $x_cod_response = $this->post['x_cod_response'];
 
-                    $response = $statusMap[(int)$x_cod_response] ?? [
-                        "alert" => "error",
-                        "message" => "Error en código de respuesta",
-                        "status" => "pending"
-                    ];
+        $statusMap = [
+            1 => ["alert" => "success", "message" => "Transacción aceptada", "status" => "paid"],
+            2 => ["alert" => "error", "message" => "Transacción rechazada", "status" => "canceled"],
+            3 => ["alert" => "warning", "message" => "Transacción pendiente", "status" => "pending_payment"],
+            4 => ["alert" => "error", "message" => "Transacción fallida", "status" => "canceled"]
+        ];
 
-                    // Solo actualiza el estado si no es "paid"
-                    if ($this->order->status !== "paid") {
-                        $this->orderRepository->update(['status' => $response["status"]], $this->order->id);
+        $response = $statusMap[(int)$x_cod_response] ?? [
+            "alert" => "error",
+            "message" => "Error en código de respuesta",
+            "status" => "pending"
+        ];
 
-                        // Lógica adicional si el nuevo estado es "paid"
-                        if ($response["status"] === "paid" && $x_response === "paid" && $this->order->canInvoice()) {
-                            $this->invoiceRepository->create($this->prepareInvoiceData(), null, $response["status"]);
-                        }
-                    }
+        // Solo actualiza el estado si no es "paid"
+        if ($this->order->status !== "paid") {
+            $this->orderRepository->update(['status' => $response["status"]], $this->order->id);
 
-                return response()->json($response);
-            }// end signature iif
-        }//-- end validation order
+            // Lógica adicional si el nuevo estado es "paid"
+            if ($response["status"] === "paid" && $x_response === "paid" && $this->order->canInvoice()) {
+                $this->invoiceRepository->create($this->prepareInvoiceData(), null, $response["status"]);
+            }
+        }
+
+        return response()->json($response);
     }//-- end processOrder
+
+    protected function normalizeAmount($amount): string
+    {
+        return number_format((float) $amount, 2, '.', '');
+    }
 
     /**
      * Prepares order's invoice data for creation.

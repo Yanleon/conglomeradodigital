@@ -1,0 +1,11 @@
+﻿{
+    "name": "webkul/boldpayment",
+    "description": "Integracion Bold Payment para Bagisto",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Webkul\\BoldPayment\\": "src/"
+        }
+    }
+}

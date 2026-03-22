@@ -303,15 +303,15 @@ return [
 
                 'invoice-pdf' => [
                     'bank-details'               => 'Detalles Bancarios',
-                    'bill-to'                    => 'Facturar a',
+                    'bill-to'                    => 'Remisión a',
                     'contact-number'             => 'Número de Contacto',
                     'contact'                    => 'Contacto',
-                    'date'                       => 'Fecha de la Factura',
+                    'date'                       => 'Fecha de la Remisión',
                     'discount'                   => 'Descuento',
                     'excl-tax'                   => 'Excl. Impuestos:',
                     'grand-total'                => 'Total General',
-                    'invoice-id'                 => 'ID de Factura',
-                    'invoice'                    => 'Factura',
+                    'invoice-id'                 => 'ID de Remisión',
+                    'invoice'                    => 'Remisión de venta',
                     'order-date'                 => 'Fecha del Pedido',
                     'order-id'                   => 'ID de Pedido',
                     'payment-method'             => 'Método de Pago',
@@ -682,10 +682,12 @@ return [
 
     'checkout' => [
         'success' => [
-            'info'          => 'Le enviaremos los detalles de su pedido y la información de seguimiento por correo electrónico',
+            'info'          => 'Te enviaremos los detalles de tu pedido y la información de seguimiento por correo electrónico 📩.  
+Si realizaste tu compra por transferencia, por favor sigue las instrucciones enviadas a tu correo.  
+Recuerda revisar también la carpeta de spam o correo no deseado, ya que a veces los mensajes pueden llegar allí. 💌',
             'order-id-info' => 'Su número de pedido es #:order_id',
-            'thanks'        => '¡Gracias por su pedido!',
-            'title'         => 'Pedido realizado con éxito',
+            'thanks'        => '¡Gracias por tu compra en Thantina! 💖',
+            'title'         => '¡Pedido realizado con éxito!',
         ],
 
         'cart' => [
@@ -995,7 +997,7 @@ return [
 
             'invoiced' => [
                 'greeting' => 'Su factura #:invoice_id para el pedido :order_id, creada el :created_at',
-                'subject'  => 'Nueva confirmación de factura',
+                'subject'  => 'z|',
                 'summary'  => 'Resumen de la factura',
                 'title'    => '¡Confirmación de factura!',
             ],

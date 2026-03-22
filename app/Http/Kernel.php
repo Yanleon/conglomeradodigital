@@ -62,6 +62,9 @@ class Kernel extends HttpKernel
         'guest'         => \App\Http\Middleware\RedirectIfAuthenticated::class,
         'signed'        => \Illuminate\Routing\Middleware\ValidateSignature::class,
         'throttle'      => \Illuminate\Routing\Middleware\ThrottleRequests::class,
+        'theme'         => \Webkul\Shop\Http\Middleware\Theme::class,
+        'locale'        => \Webkul\Shop\Http\Middleware\Locale::class,
+        'currency'      => \Webkul\Shop\Http\Middleware\Currency::class,
         'cacheResponse' => \Webkul\Shop\Http\Middleware\CacheResponse::class,
     ];
 }
