@@ -18,7 +18,7 @@ class PaymentController extends Controller
 
         if ($cart) {
             $orderId = $orderId ?: 'ORDER_' . $cart->id;
-            // Bold espera montos enteros sin decimales (p.ej. 95000 para $95.000 COP).
+            // Bold requiere montos enteros sin decimales (p.ej. 95000 para $95.000 COP).
             $amount = $amount !== null ? (int) $amount : (int) round($cart->grand_total);
             $currency = $currency ?: $cart->cart_currency_code;
             $description = $description ?: 'Pago de pedido #' . $cart->id;
@@ -31,14 +31,16 @@ class PaymentController extends Controller
 
         $currency = strtoupper($currency);
         $redirectUrl = $request->input('redirect_url', route('bold.callback', [], true));
-        // Bold espera "embedded" o "redirect".
-        $renderMode = $request->boolean('embedded', true) ? 'embedded' : 'redirect';
+        $renderMode = 'embedded';
 
         $apiKey = core()->getConfigData('sales.payment_methods.boldpayment.api_key');
         $secretKey = core()->getConfigData('sales.payment_methods.boldpayment.secret_key');
-        $merchantId = core()->getConfigData('sales.payment_methods.boldpayment.merchant_id');
         $buttonStyle = core()->getConfigData('sales.payment_methods.boldpayment.button_style') ?: 'dark-M';
-        $environment = core()->getConfigData('sales.payment_methods.boldpayment.sandbox') ? 'sandbox' : 'production';
+        $sandbox = (bool) core()->getConfigData('sales.payment_methods.boldpayment.sandbox');
+        $scriptHost = $sandbox
+            ? 'https://stg.checkout.bold.co/library/boldPaymentButton.js'
+            : 'https://checkout.bold.co/library/boldPaymentButton.js';
+        $originUrl = url()->current();
 
         $signature = null;
 
@@ -60,8 +62,8 @@ class PaymentController extends Controller
             'apiKey'      => $apiKey,
             'signature'   => $signature,
             'buttonStyle' => $buttonStyle,
-            'merchantId'  => $merchantId,
-            'environment' => $environment,
+            'scriptHost'  => $scriptHost,
+            'originUrl'   => $originUrl,
         ]);
     }
 

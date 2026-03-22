@@ -85,18 +85,17 @@
 
             <div class="bold-button-slot">
                 <script
-                    src="https://checkout.bold.co/library/boldPaymentButton.js"
+                    src="{{ $scriptHost }}"
                     data-bold-button="{{ $buttonStyle }}"
                     data-api-key="{{ $apiKey }}"
-                    data-order-id="{{ $orderId }}"
-                    data-currency="{{ $currency }}"
                     data-description="{{ $description }}"
                     data-redirection-url="{{ $redirectUrl }}"
                     data-render-mode="{{ $renderMode ?? 'embedded' }}"
+                    data-origin-url="{{ $originUrl }}"
+                    data-order-id="{{ $amount > 0 ? $orderId : '' }}"
+                    data-currency="{{ $amount > 0 ? $currency : '' }}"
                     data-amount="{{ $amount > 0 ? $amount : '' }}"
                     data-integrity-signature="{{ $amount > 0 ? $signature : '' }}"
-                    data-environment="{{ $environment }}"
-                    data-merchant-id="{{ $merchantId }}"
                 ></script>
             </div>
 
