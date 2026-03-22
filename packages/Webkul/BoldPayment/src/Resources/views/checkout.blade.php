@@ -99,9 +99,14 @@
                     data-integrity-signature="{{ $amount > 0 ? $signature : '' }}"
                 ></script>
 
+                <button id="bold-debug-btn" type="button" class="mt-3 text-xs text-blue-500 underline">
+                    Probar Bold (debug)
+                </button>
+
                 <script>
                     document.addEventListener('DOMContentLoaded', () => {
                         const scriptEl = document.querySelector('script[data-bold-button]');
+                        const debugBtn = document.getElementById('bold-debug-btn');
                         if (!scriptEl) return;
 
                         const dataset = scriptEl.dataset;
@@ -149,6 +154,25 @@
 
                         // Espera breve para que el script de Bold pinte el botón y luego engancha el handler
                         setTimeout(attach, 400);
+
+                        if (debugBtn) {
+                            debugBtn.addEventListener('click', (event) => {
+                                event.preventDefault();
+
+                                if (typeof BoldCheckout === 'undefined') {
+                                    console.error('BoldCheckout no está definido; el script no cargó.');
+                                    return;
+                                }
+
+                                const cfg = buildConfig();
+                                console.log('Bold debug cfg', cfg);
+                                try {
+                                    new BoldCheckout(cfg).open();
+                                } catch (error) {
+                                    console.error('Bold: error al abrir (debug)', error);
+                                }
+                            });
+                        }
                     });
                 </script>
             </div>
