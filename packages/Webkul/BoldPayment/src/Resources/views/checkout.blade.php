@@ -88,7 +88,6 @@
                     src="https://checkout.bold.co/library/boldPaymentButton.js"
                     data-bold-button="{{ $buttonStyle }}"
                     data-api-key="{{ $apiKey }}"
-                    data-merchant-id="{{ $merchantId }}"
                     data-order-id="{{ $orderId }}"
                     data-currency="{{ $currency }}"
                     data-description="{{ $description }}"
@@ -97,64 +96,9 @@
                     data-amount="{{ $amount > 0 ? $amount : '' }}"
                     data-integrity-signature="{{ $amount > 0 ? $signature : '' }}"
                     data-environment="{{ $environment }}"
+                    data-merchant-id="{{ $merchantId }}"
                 ></script>
             </div>
-
-            <script>
-                document.addEventListener('DOMContentLoaded', () => {
-                    const scriptEl = document.querySelector('script[data-bold-button]');
-                    if (!scriptEl) {
-                        return;
-                    }
-
-                    const dataset = scriptEl.dataset;
-
-                    if (!dataset.apiKey) {
-                        console.error('Bold: falta API Key en la configuración.');
-                        return;
-                    }
-
-                    const buildConfig = () => ({
-                        apiKey: dataset.apiKey,
-                        merchantId: dataset.merchantId,
-                        orderId: dataset.orderId,
-                        currency: dataset.currency,
-                        description: dataset.description,
-                        redirectionUrl: dataset.redirectionUrl,
-                        renderMode: dataset.renderMode || 'embedded',
-                        amount: parseInt(dataset.amount || '0', 10) || 0,
-                        integritySignature: dataset.integritySignature,
-                        environment: dataset.environment || 'production',
-                    });
-
-                    const attachHandler = () => {
-                        const boldButton = scriptEl.nextElementSibling?.shadowRoot?.querySelector('#boldPaymentButton')
-                            || scriptEl.nextElementSibling;
-
-                        if (!boldButton) {
-                            return;
-                        }
-
-                        // Evita duplicar listeners
-                        boldButton.removeEventListener('click', boldButton._boldClickHandler || (() => {}));
-
-                        boldButton._boldClickHandler = (event) => {
-                            event.preventDefault();
-                            try {
-                                const checkout = new BoldCheckout(buildConfig());
-                                checkout.open();
-                            } catch (error) {
-                                console.error('Bold: error al abrir el checkout', error);
-                            }
-                        };
-
-                        boldButton.addEventListener('click', boldButton._boldClickHandler);
-                    };
-
-                    // Permite que la librería renderice el botón antes de enlazarlo
-                    setTimeout(attachHandler, 300);
-                });
-            </script>
 
             <div class="bold-footer-note">Serás redirigido al finalizar el pago.</div>
         </div>

@@ -18,8 +18,8 @@ class PaymentController extends Controller
 
         if ($cart) {
             $orderId = $orderId ?: 'ORDER_' . $cart->id;
-            // Bold suele esperar centavos. Pasamos en centavos para mayor compatibilidad.
-            $amount = $amount !== null ? (int) $amount : (int) round($cart->grand_total * 100);
+            // Bold espera montos enteros sin decimales (p.ej. 95000 para $95.000 COP).
+            $amount = $amount !== null ? (int) $amount : (int) round($cart->grand_total);
             $currency = $currency ?: $cart->cart_currency_code;
             $description = $description ?: 'Pago de pedido #' . $cart->id;
         } else {
@@ -30,8 +30,8 @@ class PaymentController extends Controller
         }
 
         $currency = strtoupper($currency);
-        $redirectUrl = $request->input('redirect_url', route('bold.callback', absolute: true));
-        // Bold espera "embedded" (modal) o "redirect".
+        $redirectUrl = $request->input('redirect_url', route('bold.callback', [], true));
+        // Bold espera "embedded" o "redirect".
         $renderMode = $request->boolean('embedded', true) ? 'embedded' : 'redirect';
 
         $apiKey = core()->getConfigData('sales.payment_methods.boldpayment.api_key');
