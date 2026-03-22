@@ -31,11 +31,14 @@ class PaymentController extends Controller
 
         $currency = strtoupper($currency);
         $redirectUrl = $request->input('redirect_url', route('bold.callback', absolute: true));
-        $renderMode = $request->boolean('embedded', true) ? 'modal' : 'redirect';
+        // Bold espera "embedded" (modal) o "redirect".
+        $renderMode = $request->boolean('embedded', true) ? 'embedded' : 'redirect';
 
         $apiKey = core()->getConfigData('sales.payment_methods.boldpayment.api_key');
         $secretKey = core()->getConfigData('sales.payment_methods.boldpayment.secret_key');
+        $merchantId = core()->getConfigData('sales.payment_methods.boldpayment.merchant_id');
         $buttonStyle = core()->getConfigData('sales.payment_methods.boldpayment.button_style') ?: 'dark-M';
+        $environment = core()->getConfigData('sales.payment_methods.boldpayment.sandbox') ? 'sandbox' : 'production';
 
         $signature = null;
 
@@ -57,6 +60,8 @@ class PaymentController extends Controller
             'apiKey'      => $apiKey,
             'signature'   => $signature,
             'buttonStyle' => $buttonStyle,
+            'merchantId'  => $merchantId,
+            'environment' => $environment,
         ]);
     }
 
