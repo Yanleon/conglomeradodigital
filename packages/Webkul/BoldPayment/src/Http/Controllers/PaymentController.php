@@ -41,6 +41,7 @@ class PaymentController extends Controller
             ? 'https://stg.checkout.bold.co/library/boldPaymentButton.js'
             : 'https://checkout.bold.co/library/boldPaymentButton.js';
         $originUrl = url()->current();
+        $environment = $sandbox ? 'sandbox' : 'production';
 
         $signature = null;
 
@@ -64,6 +65,7 @@ class PaymentController extends Controller
             'buttonStyle' => $buttonStyle,
             'scriptHost'  => $scriptHost,
             'originUrl'   => $originUrl,
+            'environment' => $environment,
         ]);
     }
 
