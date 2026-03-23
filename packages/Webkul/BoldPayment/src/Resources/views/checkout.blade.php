@@ -71,6 +71,7 @@
                         checkoutInstance = new window.BoldCheckout(config);
                         if (readinessTimer) clearTimeout(readinessTimer);
                         button.disabled = false;
+                        button.style.cursor = 'pointer';
                         setStatus('Listo para pagar');
                     } catch (error) {
                         console.error('BoldCheckout init error', error);
@@ -83,8 +84,11 @@
                 const openCheckout = (event) => {
                     event?.preventDefault();
 
+                    console.log('[Bold] click handler fired');
+
                     if (! checkoutInstance) {
                         setStatus('Click recibido, pero aún no cargamos Bold. Reintenta en unos segundos.', true);
+                        console.warn('[Bold] checkoutInstance vacío');
                         return;
                     }
 
@@ -99,7 +103,13 @@
                     }
                 };
 
-                button.addEventListener('click', openCheckout);
+                const bindClick = () => {
+                    button.removeAttribute('disabled');
+                    button.style.cursor = 'pointer';
+                    button.addEventListener('click', openCheckout);
+                    button.addEventListener('pointerdown', () => console.log('[Bold] pointerdown'));
+                    button.addEventListener('pointerup', () => console.log('[Bold] pointerup'));
+                };
 
                 window.addEventListener('boldCheckoutLoaded', setupButton, { once: true });
 
@@ -113,6 +123,9 @@
                 } else {
                     initBoldCheckout();
                 }
+
+                // Asegura binding incluso si el init se retrasa
+                bindClick();
             })();
         </script>
     </div>
