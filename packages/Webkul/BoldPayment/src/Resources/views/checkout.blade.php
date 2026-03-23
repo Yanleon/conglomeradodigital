@@ -10,7 +10,8 @@
         <button
             id="bold-custom-button"
             type="button"
-            class="inline-flex items-center justify-center px-6 py-3 rounded-md bg-blue text-white text-base font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            style="background:#1d4ed8;color:#fff;padding:12px 20px;border-radius:8px;min-width:220px;font-weight:600;box-shadow:0 8px 16px rgba(0,0,0,0.08);"
+            class="inline-flex items-center justify-center text-base disabled:opacity-50 disabled:cursor-not-allowed"
             disabled
         >
             {{ $buttonLabel }}
@@ -28,6 +29,7 @@
                 const status = document.getElementById('bold-status');
                 const boldSrc = 'https://checkout.bold.co/library/boldPaymentButton.js';
                 let checkoutInstance = null;
+                let readinessTimer = null;
 
                 const setStatus = (text, isError = false) => {
                     status.textContent = text;
@@ -46,6 +48,13 @@
 
                     js.src = boldSrc;
                     document.head.appendChild(js);
+
+                    readinessTimer = setTimeout(() => {
+                        if (! window.BoldCheckout) {
+                            setStatus('No se pudo cargar Bold. Revisa tu conexión o intenta de nuevo.', true);
+                            button.disabled = true;
+                        }
+                    }, 5000);
                 };
 
                 const setupButton = () => {
@@ -55,6 +64,7 @@
 
                     try {
                         checkoutInstance = new window.BoldCheckout(config);
+                        if (readinessTimer) clearTimeout(readinessTimer);
                         button.disabled = false;
                         setStatus('Listo para pagar');
                     } catch (error) {
