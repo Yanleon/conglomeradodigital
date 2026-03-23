@@ -21,7 +21,7 @@ class PaymentController extends Controller
         $amount = $request->input('amount');
         $currency = $request->input('currency');
         $description = $request->input('description');
-        $originUrl = $request->input('origin_url', url()->current());
+        $originUrl = str_replace('127.0.0.1', 'localhost', $request->input('origin_url', url()->current()));
         $renderMode = $request->input('render_mode');
         $customerData = $request->input('customer_data');
         $billingAddress = $request->input('billing_address');
@@ -43,10 +43,9 @@ class PaymentController extends Controller
         }
 
         $currency = strtoupper($currency);
-        $redirectUrl = $request->input('redirect_url', route('bold.callback'));
-        // For reliability use modal by default; allow override via render_mode or embedded=false
-        // Modal por defecto para evitar bloqueos de UI; usar embedded solo si se pide explícitamente.
-        $renderMode = $renderMode ?: ($request->boolean('embedded', false) ? 'embedded' : 'modal');
+        $redirectUrl = str_replace('127.0.0.1', 'localhost', $request->input('redirect_url', route('bold.callback')));
+        // Usar Embedded Checkout por defecto según la guía.
+        $renderMode = $renderMode ?: 'embedded';
 
         // Normalizar datos anidados según documentación (cadenas JSON en camelCase).
         if (is_array($customerData)) {
