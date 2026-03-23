@@ -34,6 +34,7 @@
                 const setStatus = (text, isError = false) => {
                     status.textContent = text;
                     status.classList.toggle('text-red-600', isError);
+                    console.log('[Bold] status:', text);
                 };
 
                 const initBoldCheckout = () => {
@@ -43,7 +44,10 @@
 
                     const js = document.createElement('script');
 
-                    js.onload = () => window.dispatchEvent(new Event('boldCheckoutLoaded'));
+                    js.onload = () => {
+                        console.log('[Bold] script loaded');
+                        window.dispatchEvent(new Event('boldCheckoutLoaded'));
+                    };
                     js.onerror = () => window.dispatchEvent(new Event('boldCheckoutLoadFailed'));
 
                     js.src = boldSrc;
@@ -63,6 +67,7 @@
                     }
 
                     try {
+                        console.log('[Bold] init config', config);
                         checkoutInstance = new window.BoldCheckout(config);
                         if (readinessTimer) clearTimeout(readinessTimer);
                         button.disabled = false;
@@ -84,7 +89,10 @@
                     }
 
                     try {
+                        setStatus('Abriendo Bold...');
+                        console.log('[Bold] open checkout');
                         checkoutInstance.open();
+                        setStatus('Si no ves la ventana, revisa bloqueador de popups.');
                     } catch (error) {
                         console.error('BoldCheckout open error', error);
                         setStatus('No pudimos abrir Bold: ' + (error?.message || 'Error desconocido'), true);

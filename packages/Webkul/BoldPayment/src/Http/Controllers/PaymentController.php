@@ -44,7 +44,7 @@ class PaymentController extends Controller
 
         $currency = strtoupper($currency);
         $redirectUrl = $request->input('redirect_url', route('bold.callback'));
-        $renderMode = $renderMode ?: ($request->boolean('embedded', true) ? 'embedded' : null);
+        $renderMode = $renderMode ?: ($request->boolean('embedded', true) ? 'embedded' : 'modal');
 
         $apiKey = core()->getConfigData('sales.payment_methods.boldpayment.api_key');
         $secretKey = core()->getConfigData('sales.payment_methods.boldpayment.secret_key');
@@ -57,7 +57,7 @@ class PaymentController extends Controller
 
         $config = array_filter([
             'orderId'            => $orderId,
-            'amount'             => (string) $amount,
+            'amount'             => (int) $amount,
             'currency'           => $currency,
             'description'        => $description,
             'redirectionUrl'     => $redirectUrl,
