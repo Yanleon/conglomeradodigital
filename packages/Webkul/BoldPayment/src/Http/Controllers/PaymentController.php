@@ -23,6 +23,7 @@ class PaymentController extends Controller
         $currency = $request->input('currency');
         $description = $request->input('description');
         $originUrl = str_replace('127.0.0.1', 'localhost', $request->input('origin_url', url()->current()));
+        $originUrl = str_replace('http://', 'https://', $originUrl);
         $renderMode = $request->input('render_mode');
         $customerData = $request->input('customer_data');
         $billingAddress = $request->input('billing_address');
@@ -44,7 +45,13 @@ class PaymentController extends Controller
         }
 
         $currency = strtoupper($currency);
-        $redirectUrl = str_replace('127.0.0.1', 'localhost', $request->input('redirect_url', route('bold.callback')));
+
+        $defaultRedirect = route('bold.callback');
+        $defaultRedirect = str_replace('127.0.0.1', 'localhost', $defaultRedirect);
+        $defaultRedirect = str_replace('http://', 'https://', $defaultRedirect);
+
+        $redirectUrl = str_replace('127.0.0.1', 'localhost', $request->input('redirect_url', $defaultRedirect));
+        $redirectUrl = str_replace('http://', 'https://', $redirectUrl);
         // Usar Embedded Checkout por defecto según la guía.
         $renderMode = $renderMode ?: 'embedded';
 
