@@ -21,14 +21,7 @@ class PasarelaController extends Controller
         $monto = $request->monto;
         $divisa = $request->divisa;
 
-        // Llave secreta almacenada en .env (nunca en frontend)
-        $llaveSecreta = env('LLAVE_SECRETA_PASARELA');
-
-        // Concatenar la cadena según la documentación de Bold
-        $cadena_concatenada = "{$identificador}{$monto}{$divisa}{$llaveSecreta}";
-
-        // Generar el hash SHA256
-        $hash = hash("sha256", $cadena_concatenada);
+        $hash = $this->buildIntegritySignature($identificador, $monto, $divisa);
 
         return response()->json(['hash' => $hash]);
     }
@@ -44,9 +37,27 @@ class PasarelaController extends Controller
             'monto' => 150000,
             'divisa' => 'COP',
             'descripcion' => 'Zapatos de temporada para dama',
-            'correo' => 'cliente@ejemplo.com'
+            'correo' => 'cliente@ejemplo.com',
         ];
 
-        return view('pasarela.boton', compact('pedido'));
+        $hash = $this->buildIntegritySignature(
+            $pedido['identificador'],
+            $pedido['monto'],
+            $pedido['divisa']
+        );
+
+        $apiKey = env('BOLD_API_KEY', env('BOLD_IDENTIFICADOR_COMERCIO'));
+        $redirectionUrl = env('BOLD_REDIRECTION_URL', url('/'));
+
+        return view('pasarela.boton', compact('pedido', 'hash', 'apiKey', 'redirectionUrl'));
+    }
+
+    private function buildIntegritySignature(string $identificador, $monto, string $divisa): string
+    {
+        $llaveSecreta = env('BOLD_SECRET_KEY', env('LLAVE_SECRETA_PASARELA'));
+
+        $cadenaConcatenada = "{$identificador}{$monto}{$divisa}{$llaveSecreta}";
+
+        return hash('sha256', $cadenaConcatenada);
     }
 }

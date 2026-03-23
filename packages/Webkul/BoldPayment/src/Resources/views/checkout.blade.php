@@ -12,7 +12,6 @@
             type="button"
             style="background:#1d4ed8;color:#fff;padding:12px 20px;border-radius:8px;min-width:220px;font-weight:600;box-shadow:0 8px 16px rgba(0,0,0,0.08);"
             class="inline-flex items-center justify-center text-base disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled
         >
             {{ $buttonLabel }}
             @if($amount > 0)
@@ -20,112 +19,32 @@
             @endif
         </button>
 
-        <p id="bold-status" class="text-sm text-gray-600 mt-3">Cargando Bold…</p>
+        <p class="text-sm text-gray-600 mt-3">Si no ves la ventana de pago, revisa el bloqueador de popups.</p>
 
+        <script src="https://checkout.bold.co/library/boldPaymentButton.js"></script>
         <script>
-            (() => {
+            (function () {
                 const config = @json($config);
                 const button = document.getElementById('bold-custom-button');
-                const status = document.getElementById('bold-status');
-                const boldSrc = 'https://checkout.bold.co/library/boldPaymentButton.js';
-                let checkoutInstance = null;
-                let readinessTimer = null;
 
-                const setStatus = (text, isError = false) => {
-                    status.textContent = text;
-                    status.classList.toggle('text-red-600', isError);
-                    console.log('[Bold] status:', text);
-                };
+                console.log('[Bold] config', config);
 
-                const initBoldCheckout = () => {
-                    if (document.querySelector(`script[src="${boldSrc}"]`)) {
-                        return;
-                    }
-
-                    const js = document.createElement('script');
-
-                    js.onload = () => {
-                        console.log('[Bold] script loaded');
-                        window.dispatchEvent(new Event('boldCheckoutLoaded'));
-                    };
-                    js.onerror = () => window.dispatchEvent(new Event('boldCheckoutLoadFailed'));
-
-                    js.src = boldSrc;
-                    document.head.appendChild(js);
-
-                    readinessTimer = setTimeout(() => {
-                        if (! window.BoldCheckout) {
-                            setStatus('No se pudo cargar Bold. Revisa tu conexión o intenta de nuevo.', true);
-                            button.disabled = true;
-                        }
-                    }, 5000);
-                };
-
-                const setupButton = () => {
-                    if (! window.BoldCheckout) {
-                        return;
-                    }
-
-                    try {
-                        console.log('[Bold] init config', config);
-                        checkoutInstance = new window.BoldCheckout(config);
-                        if (readinessTimer) clearTimeout(readinessTimer);
-                        button.disabled = false;
-                        button.style.cursor = 'pointer';
-                        setStatus('Listo para pagar');
-                    } catch (error) {
-                        console.error('BoldCheckout init error', error);
-                        setStatus('No pudimos iniciar Bold: ' + (error?.message || 'Error desconocido'), true);
-                        button.disabled = true;
-                        return;
-                    }
-                };
-
-                const openCheckout = (event) => {
-                    event?.preventDefault();
-
-                    console.log('[Bold] click handler fired');
-
-                    if (! checkoutInstance) {
-                        setStatus('Click recibido, pero aún no cargamos Bold. Reintenta en unos segundos.', true);
-                        console.warn('[Bold] checkoutInstance vacío');
-                        return;
-                    }
-
-                    try {
-                        setStatus('Click recibido: abriendo Bold...');
-                        console.log('[Bold] open checkout');
-                        checkoutInstance.open();
-                        setStatus('Si no ves la ventana, revisa bloqueador de popups.');
-                    } catch (error) {
-                        console.error('BoldCheckout open error', error);
-                        setStatus('No pudimos abrir Bold: ' + (error?.message || 'Error desconocido'), true);
-                    }
-                };
-
-                const bindClick = () => {
-                    button.removeAttribute('disabled');
-                    button.style.cursor = 'pointer';
-                    button.addEventListener('click', openCheckout);
-                    button.addEventListener('pointerdown', () => console.log('[Bold] pointerdown'));
-                    button.addEventListener('pointerup', () => console.log('[Bold] pointerup'));
-                };
-
-                window.addEventListener('boldCheckoutLoaded', setupButton, { once: true });
-
-                window.addEventListener('boldCheckoutLoadFailed', () => {
-                    button.disabled = true;
-                    setStatus('No pudimos cargar Bold. Reintenta en unos segundos.', true);
-                });
-
-                if (window.BoldCheckout) {
-                    setupButton();
-                } else {
-                    initBoldCheckout();
+                if (! window.BoldCheckout) {
+                    console.error('[Bold] BoldCheckout no disponible');
+                    return;
                 }
 
-                // Asegura binding incluso si el init se retrasa
-                bindClick();
+                const checkout = new window.BoldCheckout(config);
+
+                button.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    try {
+                        checkout.open();
+                    } catch (error) {
+                        console.error('[Bold] open error', error);
+                        alert('No pudimos abrir Bold: ' + (error?.message || 'Error desconocido'));
+                    }
+                });
             })();
         </script>
     </div>
