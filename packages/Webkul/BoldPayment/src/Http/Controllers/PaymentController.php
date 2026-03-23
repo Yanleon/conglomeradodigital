@@ -44,7 +44,18 @@ class PaymentController extends Controller
 
         $currency = strtoupper($currency);
         $redirectUrl = $request->input('redirect_url', route('bold.callback'));
-        $renderMode = $renderMode ?: ($request->boolean('embedded', true) ? 'embedded' : 'modal');
+        // For reliability use modal by default; allow override via render_mode or embedded=false
+        // Modal por defecto para evitar bloqueos de UI; usar embedded solo si se pide explícitamente.
+        $renderMode = $renderMode ?: ($request->boolean('embedded', false) ? 'embedded' : 'modal');
+
+        // Normalizar datos anidados según documentación (cadenas JSON en camelCase).
+        if (is_array($customerData)) {
+            $customerData = json_encode($customerData);
+        }
+
+        if (is_array($billingAddress)) {
+            $billingAddress = json_encode($billingAddress);
+        }
 
         $apiKey = core()->getConfigData('sales.payment_methods.boldpayment.api_key');
         $secretKey = core()->getConfigData('sales.payment_methods.boldpayment.secret_key');
@@ -52,12 +63,13 @@ class PaymentController extends Controller
         $signature = null;
 
         if ($secretKey) {
-            $signature = hash('sha256', "{$orderId}{$amount}{$currency}{$secretKey}");
+            // Bold concatena orderId + amount (string) + currency + secretKey
+            $signature = hash('sha256', "{$orderId}" . (string) $amount . "{$currency}{$secretKey}");
         }
 
         $config = array_filter([
             'orderId'            => $orderId,
-            'amount'             => (int) $amount,
+            'amount'             => (string) $amount,
             'currency'           => $currency,
             'description'        => $description,
             'redirectionUrl'     => $redirectUrl,

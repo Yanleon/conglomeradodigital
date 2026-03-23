@@ -84,12 +84,12 @@
                     event?.preventDefault();
 
                     if (! checkoutInstance) {
-                        setStatus('Aún no hemos cargado Bold. Reintenta en unos segundos.', true);
+                        setStatus('Click recibido, pero aún no cargamos Bold. Reintenta en unos segundos.', true);
                         return;
                     }
 
                     try {
-                        setStatus('Abriendo Bold...');
+                        setStatus('Click recibido: abriendo Bold...');
                         console.log('[Bold] open checkout');
                         checkoutInstance.open();
                         setStatus('Si no ves la ventana, revisa bloqueador de popups.');
