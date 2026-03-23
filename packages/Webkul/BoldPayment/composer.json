@@ -7,5 +7,12 @@
         "psr-4": {
             "Webkul\\BoldPayment\\": "src/"
         }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Webkul\\BoldPayment\\Providers\\BoldPaymentServiceProvider"
+            ]
+        }
     }
 }

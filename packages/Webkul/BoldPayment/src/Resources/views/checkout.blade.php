@@ -1,106 +1,83 @@
-<x-shop::layouts
-    :has-header="true"
-    :has-feature="false"
-    :has-footer="false"
->
-    <x-slot:title>
-        Finaliza tu pago con Bold
-    </x-slot>
+@extends('shop::layouts.master')
 
-    @push('styles')
-        <style>
-            body { background: #f4f6f9; }
+@section('content')
+<div class="container text-center my-5">
+    <h2 class="mb-3">Finaliza tu pago con Bold</h2>
+    <p class="text-muted">Confirma el pago sin salir de la tienda.</p>
 
-            .bold-landing {
-                min-height: calc(100vh - 140px);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 56px 16px;
+    <div class="d-flex justify-content-center">
+        <button id="bold-custom-button" class="btn btn-primary px-4 py-3" type="button" disabled>
+            {{ $buttonLabel }}
+            @if($amount > 0)
+                <span class="ms-2">{{ $currency }} {{ number_format($amount, 0, ',', '.') }}</span>
+            @endif
+        </button>
+    </div>
+
+    <p id="bold-status" class="small text-muted mt-3">Cargando Bold…</p>
+
+    <script>
+        (() => {
+            const config = @json($config);
+            const button = document.getElementById('bold-custom-button');
+            const status = document.getElementById('bold-status');
+            const boldSrc = 'https://checkout.bold.co/library/boldPaymentButton.js';
+
+            const setStatus = (text, isError = false) => {
+                status.textContent = text;
+                status.classList.toggle('text-danger', isError);
+            };
+
+            const initBoldCheckout = () => {
+                if (document.querySelector(`script[src="${boldSrc}"]`)) {
+                    return;
+                }
+
+                const js = document.createElement('script');
+
+                js.onload = () => {
+                    window.dispatchEvent(new Event('boldCheckoutLoaded'));
+                };
+
+                js.onerror = () => {
+                    window.dispatchEvent(new Event('boldCheckoutLoadFailed'));
+                };
+
+                js.src = boldSrc;
+                document.head.appendChild(js);
+            };
+
+            const setupButton = () => {
+                if (! window.BoldCheckout) {
+                    return;
+                }
+
+                const checkout = new window.BoldCheckout(config);
+
+                button.disabled = false;
+                setStatus('Listo para pagar');
+
+                const openCheckout = (event) => {
+                    event?.preventDefault();
+                    checkout.open();
+                };
+
+                button.addEventListener('click', openCheckout);
+            };
+
+            window.addEventListener('boldCheckoutLoaded', setupButton, { once: true });
+
+            window.addEventListener('boldCheckoutLoadFailed', () => {
+                button.disabled = false;
+                setStatus('No pudimos cargar Bold. Reintenta en unos segundos.', true);
+            });
+
+            if (window.BoldCheckout) {
+                setupButton();
+            } else {
+                initBoldCheckout();
             }
-
-            .bold-card {
-                max-width: 560px;
-                width: 100%;
-                background: linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%);
-                border: 1px solid #e6e8f0;
-                border-radius: 18px;
-                padding: 36px 32px;
-                box-shadow: 0 20px 55px rgba(17, 24, 39, 0.14);
-                text-align: center;
-                transition: transform 0.25s ease, box-shadow 0.25s ease;
-            }
-
-            .bold-card:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 26px 65px rgba(17, 24, 39, 0.18);
-            }
-
-            .bold-card h2 {
-                font-size: 26px;
-                font-weight: 800;
-                margin-bottom: 12px;
-                color: #0f172a;
-                letter-spacing: -0.3px;
-            }
-
-            .bold-card p {
-                color: #5b6475;
-                margin-bottom: 26px;
-                font-size: 15px;
-            }
-
-            .bold-badge {
-                display: inline-flex;
-                align-items: center;
-                gap: 8px;
-                padding: 8px 12px;
-                border-radius: 999px;
-                background: #0f172a;
-                color: #e2e8f0;
-                font-size: 13px;
-                font-weight: 600;
-                margin-bottom: 14px;
-                box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
-            }
-
-            .bold-button-slot {
-                display: flex;
-                justify-content: center;
-            }
-
-            .bold-footer-note {
-                margin-top: 18px;
-                font-size: 13px;
-                color: #94a3b8;
-            }
-        </style>
-    @endpush
-
-    <section class="bold-landing">
-        <div class="bold-card">
-            <div class="bold-badge">Pago seguro con Bold</div>
-            <h2>Finaliza tu pago con Bold</h2>
-            <p>Confirma el pago sin salir de la tienda.</p>
-
-            <div class="bold-button-slot">
-                <script
-                    src="{{ $scriptHost }}"
-                    data-bold-button="{{ $buttonStyle }}"
-                    data-api-key="{{ $apiKey }}"
-                    data-description="{{ $description }}"
-                    data-redirection-url="{{ $redirectUrl }}"
-                    data-render-mode="{{ $renderMode ?? 'embedded' }}"
-                    data-origin-url="{{ $originUrl }}"
-                    data-environment="{{ $environment }}"
-                    data-order-id="{{ $amount > 0 ? $orderId : '' }}"
-                    data-currency="{{ $amount > 0 ? $currency : '' }}"
-                    data-amount="{{ $amount > 0 ? $amount : '' }}"
-                    data-integrity-signature="{{ $amount > 0 ? $signature : '' }}"
-                ></script>
-            </div>
-
-            <div class="bold-footer-note">Serás redirigido al finalizar el pago.</div>
-        </div>
-    </section>
-</x-shop::layouts>
+        })();
+    </script>
+</div>
+@endsection

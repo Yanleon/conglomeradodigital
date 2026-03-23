@@ -4,9 +4,9 @@ return [
     [
         'key' => 'sales.payment_methods.boldpayment',
         'name' => 'Bold Payment',
-        'info' => 'Bold Payment Gateway',
         'sort' => 3,
         'active' => true,
+        'info' => '',
         'fields' => [
             [
                 'name' => 'title',

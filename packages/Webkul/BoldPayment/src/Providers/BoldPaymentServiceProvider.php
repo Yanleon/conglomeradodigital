@@ -12,6 +12,8 @@ class BoldPaymentServiceProvider extends ServiceProvider
     {
         $this->loadRoutesFrom(__DIR__ . '/../Http/routes.php');
         $this->loadViewsFrom(__DIR__ . '/../Resources/views', 'boldpayment');
+        $this->mergeConfigFrom(__DIR__ . '/../Config/system.php', 'core');
+        $this->mergeConfigFrom(__DIR__ . '/../Config/paymentmethods.php', 'payment_methods');
 
         Event::listen('checkout.payment-methods.before', function ($methods) {
             $methods->push([
@@ -26,15 +28,6 @@ class BoldPaymentServiceProvider extends ServiceProvider
 
     public function register()
     {
-        $this->registerConfig();
-    }
-
-    /**
-     * Register package configurations.
-     */
-    protected function registerConfig(): void
-    {
-        $this->mergeConfigFrom(__DIR__ . '/../Config/paymentmethods.php', 'payment_methods');
-        $this->mergeConfigFrom(__DIR__ . '/../Config/system.php', 'core');
+        //
     }
 }
