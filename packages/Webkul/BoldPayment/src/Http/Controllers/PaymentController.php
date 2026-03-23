@@ -4,6 +4,7 @@ namespace Webkul\BoldPayment\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
 class PaymentController extends Controller
 {
@@ -110,11 +111,21 @@ class PaymentController extends Controller
     {
         $orderId = $request->query('bold-order-id');
         $status = $request->query('bold-tx-status');
-
-        return redirect()->route('shop.checkout.success', [
+        $params = [
             'order_id' => $orderId,
             'status'   => $status,
+        ];
+
+        if (Route::has('shop.checkout.success')) {
+            return redirect()->route('shop.checkout.success', $params);
+        }
+
+        $query = http_build_query([
+            'bold-order-id'  => $orderId,
+            'bold-tx-status' => $status,
         ]);
+
+        return redirect()->to(url('/').($query ? "?{$query}" : ''));
     }
 
     public function generateSignature(Request $request)
