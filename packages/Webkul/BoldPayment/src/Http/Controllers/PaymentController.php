@@ -4,6 +4,7 @@ namespace Webkul\BoldPayment\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 
 class PaymentController extends Controller
@@ -19,7 +20,13 @@ class PaymentController extends Controller
         $cart = function_exists('cart') ? cart()->getCart() : null;
 
         $orderId = $request->input('order_id');
-        $amount = $request->input('amount');
+
+        $rawAmount = $request->input('amount');
+        if (is_string($rawAmount)) {
+            $rawAmount = preg_replace('/[^0-9]/', '', $rawAmount);
+        }
+        $amount = $rawAmount;
+
         $currency = $request->input('currency');
         $description = $request->input('description');
         $originUrl = str_replace('127.0.0.1', 'localhost', $request->input('origin_url', url()->current()));
@@ -42,6 +49,10 @@ class PaymentController extends Controller
             $amount = $amount !== null ? (int) $amount : 0;
             $currency = $currency ?: 'COP';
             $description = $description ?: 'Pago con Bold';
+        }
+
+        if ($amount < 1000) {
+            abort(422, 'El monto debe ser mayor o igual a 1000 (COP).');
         }
 
         $currency = strtoupper($currency);
@@ -101,6 +112,17 @@ class PaymentController extends Controller
         if (empty($signature)) {
             abort(500, 'Falta la llave secreta de Bold para generar la firma de integridad.');
         }
+
+        Log::info('[Bold] Checkout config', [
+            'orderId'     => $orderId,
+            'amount'      => $amount,
+            'currency'    => $currency,
+            'hasApiKey'   => ! empty($apiKey),
+            'hasSecret'   => ! empty($secretKey),
+            'redirectUrl' => $redirectUrl,
+            'originUrl'   => $originUrl,
+            'renderMode'  => $renderMode,
+        ]);
 
         return view('boldpayment::checkout', [
             'orderId'        => $orderId,
