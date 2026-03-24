@@ -53,27 +53,30 @@ class EpaycoController extends Controller
         Cart::deActivateCart();
 
         // Crea el objeto con la informacion necesaria para enviar a epayco
+        // Llenar campos requeridos Epayco
+        $customer = $cart->customer;
+        $billing = $allDataCart->billing_address ?? (object)['phone' => ''];
+
         $data =  [
             'name' => $name_store.'#'.$orderId,
-            'description' => '',
+            'description' => core()->getConfigData('sales.payment_methods.epayco.description') ?? 'Pedido #'.$orderId,
             'invoice' => $orderId,
-            'number_doc_billing' => '',
+            'type_doc_billing' => 'CC',  // Default Colombia CC/CI/NIT
+            'number_doc_billing' => $customer->id ?? '999999999',  // o customer doc si existe
             'currency' => 'cop',
             'amount' => $cart->grand_total,
             'tax_base' => '0',
             'tax' => '0',
             'country' => 'co',
-            'lang' => 'en',
+            'lang' => 'es',  // Mejor es
             'external' => false,
             'test' => $testing_mode? true : false,
             'methodsDisable' => [""],
             'response' => $url_response,
             'confirmation' => $url_confirmation,
             'name_billing' => $cart->customer_first_name." ".$cart->customer_last_name ,
-            'address_billing' => $allDataCart->billing_address->address ,
-            'type_doc_billing' => '',
-            'mobilephone_billing' => '',
-            'number_doc_billing' => '',
+            'address_billing' => $allDataCart->billing_address->address ?? '',
+            'mobilephone_billing' => $billing->phone ?? '3000000000',  // Default test phone
             'email_billing' => $cart->customer_email
         ];
 
