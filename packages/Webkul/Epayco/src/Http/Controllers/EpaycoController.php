@@ -39,7 +39,7 @@ class EpaycoController extends Controller
         $billing = $cart->billing_address;
         $customer = $cart->customer;
 
-        // 🔥 VALIDACIONES (CLAVE)
+        // 🔥 VALIDACIONES
         if (!$billing) {
             return response()->json(['error' => 'Debe ingresar dirección de facturación'], 400);
         }
@@ -66,19 +66,22 @@ class EpaycoController extends Controller
         $name_store = core()->getConfigData('sales.payment_methods.epayco.name_store');
         $testing_mode = core()->getConfigData('sales.payment_methods.epayco.testing_mode');
 
-        // Desactiva carrito
         Cart::deActivateCart();
 
-        // Dirección segura (array o string)
+        // Dirección segura
         $address = is_array($billing->address)
             ? implode(' ', $billing->address)
             : $billing->address;
 
-        // 🔥 PAYLOAD CORRECTO
+        // 🔥 SOLUCIÓN CLAVE: referencia única
+        $uniqueInvoice = 'ORD-' . $orderId . '-' . time();
+
         $data = [
             'name' => $name_store . '#' . $orderId,
             'description' => core()->getConfigData('sales.payment_methods.epayco.description') ?? 'Pedido #' . $orderId,
-            'invoice' => $orderId,
+
+            // 👇 AQUÍ ESTABA EL ERROR (duplicado)
+            'invoice' => $uniqueInvoice,
 
             'currency' => 'COP',
             'amount' => $cart->grand_total,
@@ -95,17 +98,16 @@ class EpaycoController extends Controller
             'response' => $url_response,
             'confirmation' => $url_confirmation,
 
-            // 👇 DATOS REALES DEL CLIENTE
-            'name_billing' => $cart->customer_first_name . ' ' . $cart->customer_last_name,
+            // Datos cliente
+            'name_billing' => trim($cart->customer_first_name . ' ' . $cart->customer_last_name),
             'email_billing' => $cart->customer_email,
-            'mobilephone_billing' => $billing->phone,
+            'mobilephone_billing' => preg_replace('/\D/', '', $billing->phone),
             'address_billing' => $address,
 
             'type_doc_billing' => 'CC',
-            'number_doc_billing' => $customer->id ?? '0',
+            'number_doc_billing' => $customer->id ?? '123456789',
         ];
 
-        // Log para debug
         Log::info('EPAYCO DATA', $data);
 
         return response()->json($data);
@@ -131,10 +133,10 @@ class EpaycoController extends Controller
 
             $resp = json_decode($response->getBody()->getContents(), true);
 
-            if (isset($resp["status"])) {
-                Log::warning('Epayco validation failed', ['ref' => $ref_payco, 'resp' => $resp]);
+            // 🔥 VALIDACIÓN CORRECTA
+            if ($resp["data"]["x_cod_response"] != 1) {
                 return redirect()->route('shop.checkout.cart.index')
-                    ->with('error', 'Payment validation failed.');
+                    ->with('error', 'Pago no aprobado');
             }
 
             session()->flash('order_id', $resp["data"]["x_id_invoice"]);
@@ -144,12 +146,12 @@ class EpaycoController extends Controller
         } catch (RequestException $e) {
             Log::error('Epayco API error', ['error' => $e->getMessage()]);
             return redirect()->route('shop.checkout.cart.index')
-                ->with('error', 'Payment verification failed.');
+                ->with('error', 'Error verificando pago');
 
         } catch (\Exception $e) {
             Log::error('Epayco general error', ['error' => $e->getMessage()]);
             return redirect()->route('shop.checkout.cart.index')
-                ->with('error', 'Error inesperado.');
+                ->with('error', 'Error inesperado');
         }
     }
 }
