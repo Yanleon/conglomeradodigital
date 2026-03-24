@@ -20,7 +20,7 @@ class EpaycoController extends Controller
     ) {}
 
     /**
-     * 🔥 SOLO arma datos para ePayco (NO crea orden)
+     * 🔥 SOLO PREPARA DATOS PARA EPAYCO (NO CREA ORDEN)
      */
     public function setOrder()
     {
@@ -28,7 +28,7 @@ class EpaycoController extends Controller
     }
 
     /**
-     * 🔥 CREAR ORDEN SOLO DESPUÉS DEL PAGO
+     * 🔥 CREA ORDEN
      */
     public function createOrder()
     {
@@ -39,7 +39,7 @@ class EpaycoController extends Controller
     }
 
     /**
-     * 🔥 Construir payload para ePayco
+     * 🔥 PAYLOAD EPAYCO
      */
     public function buildRequestBody()
     {
@@ -68,7 +68,7 @@ class EpaycoController extends Controller
             return response()->json(['error' => 'Total inválido'], 400);
         }
 
-        // Config
+        // Configuración
         $url_response = core()->getConfigData('sales.payment_methods.epayco.url_response');
         $url_confirmation = core()->getConfigData('sales.payment_methods.epayco.url_confirmation');
         $name_store = core()->getConfigData('sales.payment_methods.epayco.name_store');
@@ -79,7 +79,7 @@ class EpaycoController extends Controller
             ? implode(' ', $billing->address)
             : $billing->address;
 
-        // 🔥 REFERENCIA ÚNICA (NO ORDER ID)
+        // 🔥 REFERENCIA ÚNICA
         $invoice = 'TEMP-' . time();
 
         $data = [
@@ -126,33 +126,46 @@ class EpaycoController extends Controller
     }
 
     /**
-     * 🔥 SUCCESS: AQUÍ SE CREA LA ORDEN
+     * 🔥 SUCCESS (FLUJO COMPLETO)
      */
     public function success(Request $request)
     {
         $ref_payco = $request->query('ref_payco');
 
+        if (!$ref_payco) {
+            Log::error('No llegó ref_payco');
+            return redirect()->route('shop.checkout.cart.index')
+                ->with('error', 'Error en el pago');
+        }
+
         try {
             $testing_mode = core()->getConfigData('sales.payment_methods.epayco.testing_mode');
+
             $baseUrl = $testing_mode
                 ? 'https://testopayments.epayco.co'
                 : 'https://secure.epayco.co';
 
             $client = new Client();
+
             $response = $client->get($baseUrl . '/validation/v1/reference/' . $ref_payco);
 
             $resp = json_decode($response->getBody()->getContents(), true);
 
-            // ❌ Pago no aprobado
-            if ($resp["data"]["x_cod_response"] != 1) {
+            Log::info('EPAYCO RESPONSE', $resp);
+
+            // 🔥 SIEMPRE CREAR ORDEN (NO PIERDES VENTAS)
+            $order = $this->createOrder();
+
+            // ❌ Si no aprobado
+            if (!isset($resp["data"]["x_cod_response"]) || $resp["data"]["x_cod_response"] != 1) {
+
+                Log::warning('Pago no aprobado', $resp);
+
                 return redirect()->route('shop.checkout.cart.index')
                     ->with('error', 'Pago no aprobado');
             }
 
-            // ✅ Crear orden SOLO AQUÍ
-            $order = $this->createOrder();
-
-            // 🔥 Desactivar carrito AHORA
+            // ✅ Pago aprobado
             Cart::deActivateCart();
 
             session()->flash('order_id', $order->id);
@@ -160,12 +173,16 @@ class EpaycoController extends Controller
             return redirect()->route('shop.checkout.onepage.success');
 
         } catch (RequestException $e) {
+
             Log::error('Epayco API error', ['error' => $e->getMessage()]);
+
             return redirect()->route('shop.checkout.cart.index')
                 ->with('error', 'Error verificando pago');
 
         } catch (\Exception $e) {
+
             Log::error('Epayco general error', ['error' => $e->getMessage()]);
+
             return redirect()->route('shop.checkout.cart.index')
                 ->with('error', 'Error inesperado');
         }
