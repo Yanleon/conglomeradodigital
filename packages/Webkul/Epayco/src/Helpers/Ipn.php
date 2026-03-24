@@ -72,6 +72,10 @@ class Ipn
             $this->cust_id_client = core()->getConfigData('sales.payment_methods.epayco.cust_id_client');
             $this->p_key = core()->getConfigData('sales.payment_methods.epayco.p_key');
             $this->getOrder();
+            if (!$this->order) {
+                Log::error('Epayco IPN: Order not found for x_id_invoice ' . ($this->post['x_id_invoice'] ?? 'unknown'));
+                return response()->json(['error' => 'Order not found'], 404);
+            }
             return $this->processOrder();
 
         } catch (\Exception $e) {
@@ -87,7 +91,9 @@ class Ipn
      */
     protected function getOrder()
     {
-        return $this->order = $this->orderRepository->findOneByField(['id' => $this->post['x_id_invoice']]);
+        $this->order = $this->orderRepository->findOneByField(['id' => $this->post['x_id_invoice']]);
+        Log::info('Epayco IPN looking for order', ['x_id_invoice' => $this->post['x_id_invoice'], 'found' => $this->order ? $this->order->id : null]);
+        return $this->order;
     }
 
     /**
@@ -97,6 +103,10 @@ class Ipn
      */
     protected function processOrder()
     {
+        if (!$this->order) {
+            Log::error('Epayco IPN processOrder called without order');
+            return response()->json(['error' => 'No order'], 404);
+        }
         Log::info('Epayco IPN processing order', ['order_id' => $this->order->id]);
 
         $response = [];

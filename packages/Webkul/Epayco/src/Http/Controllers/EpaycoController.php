@@ -80,12 +80,16 @@ class EpaycoController extends Controller
             : $billing->address;
 
         // 🔥 REFERENCIA ÚNICA
-        $invoice = 'TEMP-' . time();
+$order = $this->createOrder();
+session(['epayco_order_id' => $order->id]);
+Log::info('Epayco order created early', ['order_id' => $order->id]);
+$invoice = $order->id;
 
         $data = [
             'name' => $name_store . '#' . $invoice,
             'description' => 'Compra en tienda',
             'invoice' => $invoice,
+            'extra1' => $order->id, // Bagisto order ID for IPN
 
             'currency' => 'COP',
             'amount' => $cart->grand_total,
@@ -114,7 +118,9 @@ class EpaycoController extends Controller
 
         Log::info('EPAYCO DATA', $data);
 
-        return response()->json($data);
+        $responseData = array_merge($data, ['bagisto_order_id' => $order->id]);
+
+        return response()->json($responseData);
     }
 
     /**
@@ -153,8 +159,19 @@ class EpaycoController extends Controller
 
             Log::info('EPAYCO RESPONSE', $resp);
 
-            // 🔥 CREAR ORDEN SIEMPRE
-            $order = $this->createOrder();
+            // 🔥 Get or create order (idempotent)
+            $orderId = session('epayco_order_id');
+            if ($orderId) {
+                $order = $this->orderRepository->find($orderId);
+                if (!$order) {
+                    Log::warning('Epayco session order not found, creating fallback');
+                    $order = $this->createOrder();
+                }
+            } else {
+                $order = $this->createOrder();
+            }
+            session()->forget('epayco_order_id');
+            Log::info('Epayco success using order', ['order_id' => $order->id]);
 
             // ❌ Pago no aprobado
             if (!isset($resp["data"]["x_cod_response"]) || $resp["data"]["x_cod_response"] != 1) {
@@ -164,6 +181,7 @@ class EpaycoController extends Controller
                 $this->orderRepository->update([
                     'status' => 'canceled'
                 ], $order->id);
+                Cart::deActivateCart();
 
                 return redirect()->route('shop.checkout.cart.index')
                     ->with('error', 'Pago no aprobado');
@@ -172,7 +190,7 @@ class EpaycoController extends Controller
             // ✅ Pago aprobado
             $this->orderRepository->update([
                 'status' => 'processing',
-                'transaction_id' => $resp["data"]["x_ref_payco"] ?? null
+                'transaction_id' => $resp["data"]["x_ref_payco"] ?? $ref_payco
             ], $order->id);
 
             Cart::deActivateCart();
