@@ -23,8 +23,6 @@ class EpaycoController extends Controller
     ) {}
     //
 
-
-
     public function setOrder(){
         return $this->buildRequestBody($this->createOrder()->id);
     }
