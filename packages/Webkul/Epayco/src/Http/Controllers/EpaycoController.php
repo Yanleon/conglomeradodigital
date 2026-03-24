@@ -5,11 +5,14 @@ namespace Webkul\Epayco\Http\Controllers;
 use App\Http\Controllers\Controller;
 
 use Webkul\Checkout\Facades\Cart;
+use Webkul\Sales\Models\Order;
 use Webkul\Epayco\Helpers\Ipn;
 use Webkul\Sales\Repositories\OrderRepository;
 use Webkul\Sales\Transformers\OrderResource;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\RequestException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 
 class EpaycoController extends Controller
@@ -22,21 +25,15 @@ class EpaycoController extends Controller
 
 
 
-    public function setOrder(Request $request){
+    public function setOrder(){
         return $this->buildRequestBody($this->createOrder()->id);
     }
 
     public function createOrder(){
         $cart = Cart::getCart();
         $data = (new OrderResource($cart))->jsonSerialize();
-
+        // crea la venta
         $order = $this->orderRepository->create($data);
-
-        // Mantiene el carrito activo para que el checkout no se quede vacío
-        if ($cart) {
-            $cart->is_active = 1;
-            $cart->save();
-        }
 
         return $order;
     }
@@ -45,123 +42,45 @@ class EpaycoController extends Controller
     {
         // Obtiene el carrito
         $cart = Cart::getCart();
-
-        if (! $cart || ! $cart->items || $cart->items->isEmpty()) {
-            return response()->json([
-                'message' => 'El carrito está vacío. Agrega productos antes de pagar con ePayco.',
-            ], 422);
-        }
-
-        $billingAddress = $cart->billing_address;
-        $country = strtoupper($billingAddress?->country ?? 'CO');
-        $typeDoc = null;
-
-        if (is_array($billingAddress?->additional)) {
-            $typeDoc = $billingAddress->additional['document_type']
-                ?? $billingAddress->additional['type_doc']
-                ?? null;
-        }
+        // Obtiene la informacion del carrito
+        $allDataCart = new OrderResource($cart);
 
         // Obtiene la informacion de la configuracion de epayco
         $url_response = core()->getConfigData('sales.payment_methods.epayco.url_response');
         $url_confirmation = core()->getConfigData('sales.payment_methods.epayco.url_confirmation');
         $name_store = core()->getConfigData('sales.payment_methods.epayco.name_store');
-        $testing_mode = (bool) core()->getConfigData('sales.payment_methods.epayco.testing_mode');
-        $public_key = core()->getConfigData('sales.payment_methods.epayco.public_key');
-        $private_key = core()->getConfigData('sales.payment_methods.epayco.p_key');
+        $testing_mode = core()->getConfigData('sales.payment_methods.epayco.testing_mode');
 
-        if (! $public_key || ! $private_key) {
-            return response()->json([
-                'message' => 'Faltan las llaves de ePayco (public_key / p_key) en configuración.',
-            ], 422);
-        }
+        //desactiva el carrito, impide que se pueda seguir creando ordenes
+        Cart::deActivateCart();
 
-        if (! $url_response || ! $url_confirmation) {
-            return response()->json([
-                'message' => 'Faltan las URLs de respuesta/confirmación en la configuración de ePayco.',
-            ], 422);
-        }
+        // Crea el objeto con la informacion necesaria para enviar a epayco
+        $data =  [
+            'name' => $name_store.'#'.$orderId,
+            'description' => '',
+            'invoice' => $orderId,
+            'number_doc_billing' => '',
+            'currency' => 'cop',
+            'amount' => $cart->grand_total,
+            'tax_base' => '0',
+            'tax' => '0',
+            'country' => 'co',
+            'lang' => 'en',
+            'external' => false,
+            'test' => $testing_mode? true : false,
+            'methodsDisable' => [""],
+            'response' => $url_response,
+            'confirmation' => $url_confirmation,
+            'name_billing' => $cart->customer_first_name." ".$cart->customer_last_name ,
+            'address_billing' => $allDataCart->billing_address->address ,
+            'type_doc_billing' => '',
+            'mobilephone_billing' => '',
+            'number_doc_billing' => '',
+            'email_billing' => $cart->customer_email
+        ];
 
-        if ((float) $cart->grand_total <= 0) {
-            return response()->json([
-                'message' => 'El monto del carrito es 0. Verifica los totales antes de pagar.',
-            ], 422);
-        }
+        return response()->json($data);
 
-        try {
-            $authToken = $this->authenticate($public_key, $private_key);
-
-            $sessionId = $this->createCheckoutSession(
-                $authToken,
-                [
-                    'checkout_version' => '2',
-                    'name' => $name_store,
-                    'currency' => strtoupper($cart->cart_currency_code ?? 'COP'),
-                    'amount' => round((float) $cart->grand_total, 2),
-                    'description' => $cart->items?->pluck('name')->implode(', '),
-                    'lang' => 'ES',
-                    'country' => $country,
-                    'invoice' => (string) $orderId,
-                    'response' => $url_response,
-                    'confirmation' => $url_confirmation,
-                    'method' => 'POST',
-                    'billing' => array_filter([
-                        'email' => $cart->customer_email,
-                        'name' => trim(($cart->customer_first_name ?? '') . ' ' . ($cart->customer_last_name ?? '')),
-                        'address' => $cart->billing_address->address ?? null,
-                        'typeDoc' => $typeDoc,
-                        'numberDoc' => $cart->billing_address->vat_id ?? null,
-                        'mobilePhone' => $cart->billing_address->phone ?? null,
-                        'callingCode' => '+57',
-                    ]),
-                ]
-            );
-
-            return response()->json([
-                'sessionId' => $sessionId,
-                'test' => $testing_mode,
-            ]);
-        } catch (\Throwable $exception) {
-            return response()->json([
-                'message' => 'No fue posible iniciar el pago con ePayco',
-                'error' => $exception->getMessage(),
-            ], 422);
-        }
-
-    }
-
-    protected function authenticate(string $publicKey, string $privateKey): string
-    {
-        $credentials = base64_encode($publicKey . ':' . $privateKey);
-
-        $response = Http::withHeaders([
-            'Content-Type' => 'application/json',
-            'Authorization' => 'Basic ' . $credentials,
-        ])->post('https://apify.epayco.co/login');
-
-        if (! $response->ok() || empty($response->json('token'))) {
-            $detail = $response->json('textResponse') ?? $response->body();
-            throw new \RuntimeException('Error al autenticar con ePayco: ' . ($detail ?: 'sin detalle'));
-        }
-
-        return $response->json('token');
-    }
-
-    protected function createCheckoutSession(string $token, array $payload): string
-    {
-        $response = Http::withToken($token)
-            ->acceptJson()
-            ->post('https://apify.epayco.co/payment/session/create', $payload);
-
-        if (! $response->ok() || empty($response->json('data.sessionId'))) {
-            $detail = $response->json('textResponse')
-                ?? $response->json('message')
-                ?? $response->body();
-
-            throw new \RuntimeException('No se pudo crear la sesión en ePayco: ' . ($detail ?: 'sin detalle'));
-        }
-
-        return $response->json('data.sessionId');
     }
 
     public function ipn(){
@@ -169,53 +88,32 @@ class EpaycoController extends Controller
     }
 
     public function success(Request $request){
-        $refPayco = $request->query('ref_payco');
-
-        if (! $refPayco) {
-            session()->flash('error', 'Pago de ePayco sin referencia.');
-            return redirect()->route('shop.checkout.cart.index');
-        }
-
+        $ref_payco = $request->query('ref_payco');
+        
         try {
-            $response = Http::acceptJson()
-                ->timeout(10)
-                ->get("https://secure.epayco.co/validation/v1/reference/{$refPayco}");
-        } catch (\Throwable $exception) {
-            session()->flash('error', 'No fue posible validar el pago en ePayco.');
-            return redirect()->route('shop.checkout.cart.index');
+            $testing_mode = core()->getConfigData('sales.payment_methods.epayco.testing_mode');
+            $baseUrl = $testing_mode ? 'https://testopayments.epayco.co' : 'https://secure.epayco.co';
+            
+            $client = new Client();
+            $response = $client->get($baseUrl . '/validation/v1/reference/' . $ref_payco);
+            $respJson = $response->getBody()->getContents();
+            $resp = json_decode($respJson, true);
+            
+            if (isset($resp["status"])) {
+                Log::warning('Epayco validation failed for ref: ' . $ref_payco, ['response' => $resp]);
+                return redirect()->route('shop.checkout.cart.index')->with('error', 'Payment validation failed.');
+            }
+            
+            session()->flash('order_id', $resp["data"]["x_id_invoice"]);
+            return redirect()->route('shop.checkout.onepage.success');
+            
+        } catch (RequestException $e) {
+            Log::error('Epayco API error for ref: ' . $ref_payco, ['error' => $e->getMessage()]);
+            return redirect()->route('shop.checkout.cart.index')->with('error', 'Payment verification failed. Please contact support.');
+        } catch (\Exception $e) {
+            Log::error('Epayco success error: ' . $e->getMessage());
+            return redirect()->route('shop.checkout.cart.index')->with('error', 'An error occurred. Please try again.');
         }
-
-        if (! $response->ok()) {
-            session()->flash('error', 'No fue posible validar el pago en ePayco.');
-            return redirect()->route('shop.checkout.cart.index');
-        }
-
-        $resp = $response->json();
-
-        if (! ($resp['status'] ?? false) || empty($resp['data'])) {
-            session()->flash('error', 'No se encontró información del pago en ePayco.');
-            return redirect()->route('shop.checkout.cart.index');
-        }
-
-        $data = $resp['data'];
-        $code = (int) ($data['x_cod_response'] ?? 0);
-
-        $statusMap = [
-            1 => ['type' => 'success', 'message' => 'Transacción aceptada', 'route' => 'shop.checkout.onepage.success'],
-            2 => ['type' => 'error', 'message' => 'Transacción rechazada', 'route' => 'shop.checkout.cart.index'],
-            3 => ['type' => 'warning', 'message' => 'Transacción pendiente de confirmación', 'route' => 'shop.checkout.cart.index'],
-            4 => ['type' => 'error', 'message' => 'Transacción fallida', 'route' => 'shop.checkout.cart.index'],
-        ];
-
-        $status = $statusMap[$code] ?? ['type' => 'error', 'message' => 'No fue posible validar el estado del pago.', 'route' => 'shop.checkout.cart.index'];
-
-        if ($code === 1 && ! empty($data['x_id_invoice'])) {
-            session()->flash('order_id', $data['x_id_invoice']);
-        }
-
-        session()->flash($status['type'], $status['message']);
-
-        return redirect()->route($status['route']);
     }
 
 }
