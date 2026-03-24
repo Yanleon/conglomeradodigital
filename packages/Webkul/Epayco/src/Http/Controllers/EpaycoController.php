@@ -19,12 +19,17 @@ class EpaycoController extends Controller
         protected Ipn $ipnHelper
     ) {}
 
+    /**
+     * 🔥 SOLO arma datos para ePayco (NO crea orden)
+     */
     public function setOrder()
     {
-        $order = $this->createOrder();
-        return $this->buildRequestBody($order->id);
+        return $this->buildRequestBody();
     }
 
+    /**
+     * 🔥 CREAR ORDEN SOLO DESPUÉS DEL PAGO
+     */
     public function createOrder()
     {
         $cart = Cart::getCart();
@@ -33,15 +38,18 @@ class EpaycoController extends Controller
         return $this->orderRepository->create($data);
     }
 
-    public function buildRequestBody($orderId)
+    /**
+     * 🔥 Construir payload para ePayco
+     */
+    public function buildRequestBody()
     {
         $cart = Cart::getCart();
         $billing = $cart->billing_address;
         $customer = $cart->customer;
 
-        // 🔥 VALIDACIONES
+        // ✅ VALIDACIONES
         if (!$billing) {
-            return response()->json(['error' => 'Debe ingresar dirección de facturación'], 400);
+            return response()->json(['error' => 'Debe ingresar dirección'], 400);
         }
 
         if (empty($cart->customer_email)) {
@@ -60,28 +68,24 @@ class EpaycoController extends Controller
             return response()->json(['error' => 'Total inválido'], 400);
         }
 
-        // Configuración
+        // Config
         $url_response = core()->getConfigData('sales.payment_methods.epayco.url_response');
         $url_confirmation = core()->getConfigData('sales.payment_methods.epayco.url_confirmation');
         $name_store = core()->getConfigData('sales.payment_methods.epayco.name_store');
         $testing_mode = core()->getConfigData('sales.payment_methods.epayco.testing_mode');
-
-        Cart::deActivateCart();
 
         // Dirección segura
         $address = is_array($billing->address)
             ? implode(' ', $billing->address)
             : $billing->address;
 
-        // 🔥 SOLUCIÓN CLAVE: referencia única
-        $uniqueInvoice = 'ORD-' . $orderId . '-' . time();
+        // 🔥 REFERENCIA ÚNICA (NO ORDER ID)
+        $invoice = 'TEMP-' . time();
 
         $data = [
-            'name' => $name_store . '#' . $orderId,
-            'description' => core()->getConfigData('sales.payment_methods.epayco.description') ?? 'Pedido #' . $orderId,
-
-            // 👇 AQUÍ ESTABA EL ERROR (duplicado)
-            'invoice' => $uniqueInvoice,
+            'name' => $name_store . '#' . $invoice,
+            'description' => 'Compra en tienda',
+            'invoice' => $invoice,
 
             'currency' => 'COP',
             'amount' => $cart->grand_total,
@@ -98,7 +102,7 @@ class EpaycoController extends Controller
             'response' => $url_response,
             'confirmation' => $url_confirmation,
 
-            // Datos cliente
+            // Cliente
             'name_billing' => trim($cart->customer_first_name . ' ' . $cart->customer_last_name),
             'email_billing' => $cart->customer_email,
             'mobilephone_billing' => preg_replace('/\D/', '', $billing->phone),
@@ -113,11 +117,17 @@ class EpaycoController extends Controller
         return response()->json($data);
     }
 
+    /**
+     * IPN
+     */
     public function ipn()
     {
         return $this->ipnHelper->processIpn(request()->all());
     }
 
+    /**
+     * 🔥 SUCCESS: AQUÍ SE CREA LA ORDEN
+     */
     public function success(Request $request)
     {
         $ref_payco = $request->query('ref_payco');
@@ -133,13 +143,19 @@ class EpaycoController extends Controller
 
             $resp = json_decode($response->getBody()->getContents(), true);
 
-            // 🔥 VALIDACIÓN CORRECTA
+            // ❌ Pago no aprobado
             if ($resp["data"]["x_cod_response"] != 1) {
                 return redirect()->route('shop.checkout.cart.index')
                     ->with('error', 'Pago no aprobado');
             }
 
-            session()->flash('order_id', $resp["data"]["x_id_invoice"]);
+            // ✅ Crear orden SOLO AQUÍ
+            $order = $this->createOrder();
+
+            // 🔥 Desactivar carrito AHORA
+            Cart::deActivateCart();
+
+            session()->flash('order_id', $order->id);
 
             return redirect()->route('shop.checkout.onepage.success');
 
