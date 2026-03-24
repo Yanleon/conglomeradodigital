@@ -20,7 +20,7 @@ class EpaycoController extends Controller
     ) {}
 
     /**
-     * 🔥 SOLO PREPARA DATOS PARA EPAYCO (NO CREA ORDEN)
+     * 🔥 SOLO PREPARA DATOS PARA EPAYCO
      */
     public function setOrder()
     {
@@ -47,7 +47,7 @@ class EpaycoController extends Controller
         $billing = $cart->billing_address;
         $customer = $cart->customer;
 
-        // ✅ VALIDACIONES
+        // VALIDACIONES
         if (!$billing) {
             return response()->json(['error' => 'Debe ingresar dirección'], 400);
         }
@@ -126,7 +126,7 @@ class EpaycoController extends Controller
     }
 
     /**
-     * 🔥 SUCCESS (FLUJO COMPLETO)
+     * 🔥 SUCCESS (CREA ORDEN Y ACTUALIZA ESTADO)
      */
     public function success(Request $request)
     {
@@ -153,19 +153,28 @@ class EpaycoController extends Controller
 
             Log::info('EPAYCO RESPONSE', $resp);
 
-            // 🔥 SIEMPRE CREAR ORDEN (NO PIERDES VENTAS)
+            // 🔥 CREAR ORDEN SIEMPRE
             $order = $this->createOrder();
 
-            // ❌ Si no aprobado
+            // ❌ Pago no aprobado
             if (!isset($resp["data"]["x_cod_response"]) || $resp["data"]["x_cod_response"] != 1) {
 
                 Log::warning('Pago no aprobado', $resp);
+
+                $this->orderRepository->update([
+                    'status' => 'canceled'
+                ], $order->id);
 
                 return redirect()->route('shop.checkout.cart.index')
                     ->with('error', 'Pago no aprobado');
             }
 
             // ✅ Pago aprobado
+            $this->orderRepository->update([
+                'status' => 'processing',
+                'transaction_id' => $resp["data"]["x_ref_payco"] ?? null
+            ], $order->id);
+
             Cart::deActivateCart();
 
             session()->flash('order_id', $order->id);
