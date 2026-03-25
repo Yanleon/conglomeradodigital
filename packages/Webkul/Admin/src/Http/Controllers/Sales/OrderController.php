@@ -17,6 +17,7 @@ use Webkul\Payment\Facades\Payment;
 use Webkul\Sales\Repositories\OrderCommentRepository;
 use Webkul\Sales\Repositories\OrderRepository;
 use Webkul\Sales\Transformers\OrderResource;
+use Webkul\Sales\Models\Order;
 
 class OrderController extends Controller
 {
@@ -195,6 +196,30 @@ class OrderController extends Controller
         session()->flash('success', trans('admin::app.sales.orders.view.comment-success'));
 
         return redirect()->route('admin.sales.orders.view', $id);
+    }
+
+    /**
+     * Delete order (only allowed for pending/pending_payment/canceled/fraud and without invoices/shipments/refunds).
+     */
+    public function destroy(int $id)
+    {
+        $order = $this->orderRepository->findOrFail($id);
+
+        if (! in_array($order->status, [Order::STATUS_PENDING, Order::STATUS_PENDING_PAYMENT, Order::STATUS_CANCELED, Order::STATUS_FRAUD])) {
+            session()->flash('error', trans('admin::app.response.delete-error'));
+            return redirect()->back();
+        }
+
+        if ($order->invoices()->count() || $order->shipments()->count() || $order->refunds()->count()) {
+            session()->flash('error', trans('admin::app.response.delete-error'));
+            return redirect()->back();
+        }
+
+        $this->orderRepository->delete($id);
+
+        session()->flash('success', trans('admin::app.response.delete-success'));
+
+        return redirect()->route('admin.sales.orders.index');
     }
 
     /**

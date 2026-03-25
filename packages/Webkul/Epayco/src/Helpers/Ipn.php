@@ -166,14 +166,24 @@ class Ipn
                     }
 
                     // Limpia y elimina carrito si estaba activo (IPN puede llegar antes que success)
+                    $cartRepo = app(\Webkul\Checkout\Repositories\CartRepository::class);
+
+                    // 1) Eliminar carrito activo
+                    $activeCart = Cart::getCart();
+                    if ($activeCart) {
+                        Cart::removeCart($activeCart);
+                    }
+
+                    // 2) Eliminar carrito asociado a la orden si es distinto
                     $cartId = $this->order->cart_id ?? null;
                     if ($cartId) {
-                        $cartRepo = app(\Webkul\Checkout\Repositories\CartRepository::class);
                         $cartModel = $cartRepo->find($cartId);
                         if ($cartModel) {
                             Cart::removeCart($cartModel);
                         }
                     }
+
+                    // 3) Forzar limpieza de sesión
                     Cart::deActivateCart();
                     session()->forget('cart');
 

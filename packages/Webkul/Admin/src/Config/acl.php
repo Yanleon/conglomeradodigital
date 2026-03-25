@@ -51,6 +51,11 @@ return [
         'route' => 'admin.sales.orders.cancel',
         'sort'  => 3,
     ], [
+        'key'   => 'sales.orders.delete',
+        'name'  => 'admin::app.acl.delete',
+        'route' => 'admin.sales.orders.delete',
+        'sort'  => 4,
+    ], [
         'key'   => 'sales.invoices',
         'name'  => 'admin::app.acl.invoices',
         'route' => 'admin.sales.invoices.index',

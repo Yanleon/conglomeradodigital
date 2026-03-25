@@ -186,15 +186,25 @@ $invoice = $order->id;
                 'transaction_id' => $resp["data"]["x_ref_payco"] ?? $ref_payco
             ], $order->id);
 
-            // Limpia y elimina carrito
+            // Limpia y elimina carrito (tanto el de la orden como el activo)
+            $cartRepo = app(\Webkul\Checkout\Repositories\CartRepository::class);
+
+            // 1) Eliminar el carrito activo en sesión
+            $activeCart = Cart::getCart();
+            if ($activeCart) {
+                Cart::removeCart($activeCart);
+            }
+
+            // 2) Eliminar el carrito asociado a la orden si es distinto
             $cartId = $order->cart_id ?? null;
             if ($cartId) {
-                $cartRepo = app(\Webkul\Checkout\Repositories\CartRepository::class);
                 $cartModel = $cartRepo->find($cartId);
                 if ($cartModel) {
                     Cart::removeCart($cartModel);
                 }
             }
+
+            // 3) Forzar limpieza de sesión
             Cart::deActivateCart();
             session()->forget('cart');
 
