@@ -211,6 +211,9 @@ class EpaycoController extends Controller
 
         } catch (\Exception $e) {
 
+        return redirect()->route('shop.checkout.cart.index')
+                ->with('');
+                
         }
     }
 }
