@@ -165,15 +165,24 @@ class EpaycoController extends Controller
 
             Log::info('EPAYCO RESPONSE', $resp);
 
-            // ❌ Pago no aprobado
-            if (!isset($resp["data"]["x_cod_response"]) || $resp["data"]["x_cod_response"] != 1) {
+            $codResponse = (int) ($resp["data"]["x_cod_response"] ?? 0);
 
-                Log::warning('Pago no aprobado', $resp);
+            // ❌ Pago no aprobado / pendiente
+            if ($codResponse !== 1) {
+
+                $message = 'Pago no aprobado';
+
+                if ($codResponse === 3) {
+                    $message = 'Pago pendiente, verifica con tu banco o intenta de nuevo';
+                    Log::warning('Pago pendiente', $resp);
+                } else {
+                    Log::warning('Pago no aprobado', $resp);
+                }
 
                 session()->forget(['epayco_cart_id', 'epayco_reference']);
 
                 return redirect()->route('shop.checkout.cart.index')
-                    ->with('error', 'Pago no aprobado');
+                    ->with('error', $message);
             }
 
             // ✅ Pago aprobado
