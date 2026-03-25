@@ -79,26 +79,17 @@ class EpaycoController extends Controller
             ? implode(' ', $billing->address)
             : $billing->address;
 
-        // 🔥 REFERENCIA ÚNICA (evita referencias ya "Aceptadas" en ePayco)
-        $reference = sprintf('%s-%s', $cart->id ?? 'cart', now()->format('YmdHis'));
-        session([
-            'epayco_cart_id' => $cart->id,
-            'epayco_reference' => $reference,
-        ]);
-        Log::info('Epayco checkout reference created', ['reference' => $reference]);
-        $invoice = $reference;
-
-        // Documento en formato string solo con dígitos
-        $rawDocument = $billing->vat_id ?? ($customer ? $customer->id : null);
-        $documentNumber = preg_replace('/\D/', '', (string) ($rawDocument ?? ''));
-        $documentNumber = $documentNumber !== '' ? $documentNumber : '123456789';
+        // 🔥 REFERENCIA ÚNICA
+$order = $this->createOrder();
+session(['epayco_order_id' => $order->id]);
+Log::info('Epayco order created early', ['order_id' => $order->id]);
+$invoice = $order->id;
 
         $data = [
             'name' => $name_store . '#' . $invoice,
             'description' => 'Compra en tienda',
             'invoice' => $invoice,
-            // Guardamos el id de carrito en extra1 para trazabilidad (la referencia es única por intento)
-            'extra1' => $cart->id,
+            'extra1' => $order->id, // Bagisto order ID for IPN
 
             'currency' => 'COP',
             'amount' => $cart->grand_total,
@@ -122,12 +113,14 @@ class EpaycoController extends Controller
             'address_billing' => $address,
 
             'type_doc_billing' => 'CC',
-            'number_doc_billing' => $documentNumber,
+            'number_doc_billing' => $customer->id ?? '123456789',
         ];
 
         Log::info('EPAYCO DATA', $data);
 
-        return response()->json($data);
+        $responseData = array_merge($data, ['bagisto_order_id' => $order->id]);
+
+        return response()->json($responseData);
     }
 
     /**
@@ -166,54 +159,35 @@ class EpaycoController extends Controller
 
             Log::info('EPAYCO RESPONSE', $resp);
 
-            // Reactiva el carrito si no está cargado (evita perder la venta en reintentos)
-            $cart = Cart::getCart();
-
-            // Primero intenta con sesión
-            if (! $cart && session()->has('epayco_cart_id')) {
-                Cart::activateCart((int) session('epayco_cart_id'));
-                $cart = Cart::getCart();
-            }
-
-            // Luego intenta con el dato retornado por ePayco (x_extra1 = cart id enviado)
-            if (! $cart) {
-                $cartIdFromGateway = $resp['data']['x_extra1'] ?? null;
-                if ($cartIdFromGateway) {
-                    Cart::activateCart((int) $cartIdFromGateway);
-                    $cart = Cart::getCart();
+            // 🔥 Get or create order (idempotent)
+            $orderId = session('epayco_order_id');
+            if ($orderId) {
+                $order = $this->orderRepository->find($orderId);
+                if (!$order) {
+                    Log::warning('Epayco session order not found, creating fallback');
+                    $order = $this->createOrder();
                 }
+            } else {
+                $order = $this->createOrder();
             }
+            session()->forget('epayco_order_id');
+            Log::info('Epayco success using order', ['order_id' => $order->id]);
 
-            if (! $cart) {
-                Log::error('Epayco success sin carrito activo');
-                return redirect()->route('shop.checkout.cart.index')
-                    ->with('error', 'No se pudo recuperar tu carrito, por favor intenta de nuevo.');
-            }
+            // ❌ Pago no aprobado
+            if (!isset($resp["data"]["x_cod_response"]) || $resp["data"]["x_cod_response"] != 1) {
 
-            $codResponse = (int) ($resp["data"]["x_cod_response"] ?? 0);
+                Log::warning('Pago no aprobado', $resp);
 
-            // ❌ Pago no aprobado / pendiente
-            if ($codResponse !== 1) {
-
-                $message = 'Pago no aprobado';
-
-                if ($codResponse === 3) {
-                    $message = 'Pago pendiente, verifica con tu banco o intenta de nuevo';
-                    Log::warning('Pago pendiente', $resp);
-                } else {
-                    Log::warning('Pago no aprobado', $resp);
-                }
-
-                session()->forget(['epayco_cart_id', 'epayco_reference']);
+                $this->orderRepository->update([
+                    'status' => 'canceled'
+                ], $order->id);
+                Cart::deActivateCart();
 
                 return redirect()->route('shop.checkout.cart.index')
-                    ->with('error', $message);
+                    ->with('error', 'Pago no aprobado');
             }
 
             // ✅ Pago aprobado
-            $order = $this->createOrder();
-            Log::info('Epayco success creating order after approval', ['order_id' => $order->id]);
-
             $this->orderRepository->update([
                 'status' => 'processing',
                 'transaction_id' => $resp["data"]["x_ref_payco"] ?? $ref_payco
@@ -223,10 +197,7 @@ class EpaycoController extends Controller
 
             session()->flash('order_id', $order->id);
 
-            session()->forget(['epayco_cart_id', 'epayco_reference']);
-
-            return redirect()->route('shop.home.index')
-                ->with('success', 'Pago aprobado');
+            return redirect()->route('shop.checkout.onepage.success');
 
         } catch (RequestException $e) {
 
@@ -239,8 +210,8 @@ class EpaycoController extends Controller
 
             Log::error('Epayco general error', ['error' => $e->getMessage()]);
 
-            return redirect()->route('shop.home.index')
-                ->with('');
+            return redirect()->route('shop.checkout.cart.index')
+                ->with('error', 'Error inesperado');
         }
     }
 }
