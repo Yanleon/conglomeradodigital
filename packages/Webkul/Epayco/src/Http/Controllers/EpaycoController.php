@@ -165,6 +165,19 @@ class EpaycoController extends Controller
 
             Log::info('EPAYCO RESPONSE', $resp);
 
+            // Reactiva el carrito si no está cargado (evita perder la venta en reintentos)
+            $cart = Cart::getCart();
+            if (! $cart && session()->has('epayco_cart_id')) {
+                Cart::activateCart((int) session('epayco_cart_id'));
+                $cart = Cart::getCart();
+            }
+
+            if (! $cart) {
+                Log::error('Epayco success sin carrito activo');
+                return redirect()->route('shop.checkout.cart.index')
+                    ->with('error', 'No se pudo recuperar tu carrito, por favor intenta de nuevo.');
+            }
+
             $codResponse = (int) ($resp["data"]["x_cod_response"] ?? 0);
 
             // ❌ Pago no aprobado / pendiente
@@ -214,9 +227,8 @@ class EpaycoController extends Controller
 
             Log::error('Epayco general error', ['error' => $e->getMessage()]);
 
-            return redirect()->route('shop.home.index')
-                ->with('');
-                
+            return redirect()->route('shop.checkout.cart.index')
+                ->with('error', 'Error inesperado');
         }
     }
 }
