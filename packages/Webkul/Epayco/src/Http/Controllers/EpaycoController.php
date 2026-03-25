@@ -20,7 +20,7 @@ class EpaycoController extends Controller
     ) {}
 
     /**
-     * 🔥 SOLO PREPARA DATOS PARA EPAYCO
+     *  SOLO PREPARA DATOS PARA EPAYCO
      */
     public function setOrder()
     {
@@ -28,7 +28,7 @@ class EpaycoController extends Controller
     }
 
     /**
-     * 🔥 CREA ORDEN
+     *  CREA ORDEN
      */
     public function createOrder()
     {
@@ -39,7 +39,7 @@ class EpaycoController extends Controller
     }
 
     /**
-     * 🔥 PAYLOAD EPAYCO
+     * PAYLOAD EPAYCO
      */
     public function buildRequestBody()
     {
@@ -79,7 +79,7 @@ class EpaycoController extends Controller
             ? implode(' ', $billing->address)
             : $billing->address;
 
-        // 🔥 REFERENCIA ÚNICA
+        // REFERENCIA ÚNICA
 $order = $this->createOrder();
 session(['epayco_order_id' => $order->id]);
 Log::info('Epayco order created early', ['order_id' => $order->id]);
@@ -131,9 +131,7 @@ $invoice = $order->id;
         return $this->ipnHelper->processIpn(request()->all());
     }
 
-    /**
-     * 🔥 SUCCESS (CREA ORDEN Y ACTUALIZA ESTADO)
-     */
+    
     public function success(Request $request)
     {
         $ref_payco = $request->query('ref_payco');
@@ -159,7 +157,6 @@ $invoice = $order->id;
 
             Log::info('EPAYCO RESPONSE', $resp);
 
-            // 🔥 Get or create order (idempotent)
             $orderId = session('epayco_order_id');
             if ($orderId) {
                 $order = $this->orderRepository->find($orderId);
@@ -173,7 +170,6 @@ $invoice = $order->id;
             session()->forget('epayco_order_id');
             Log::info('Epayco success using order', ['order_id' => $order->id]);
 
-            // ❌ Pago no aprobado
             if (!isset($resp["data"]["x_cod_response"]) || $resp["data"]["x_cod_response"] != 1) {
 
                 Log::warning('Pago no aprobado', $resp);
@@ -187,7 +183,6 @@ $invoice = $order->id;
                     ->with('error', 'Pago no aprobado');
             }
 
-            // ✅ Pago aprobado
             $this->orderRepository->update([
                 'status' => 'processing',
                 'transaction_id' => $resp["data"]["x_ref_payco"] ?? $ref_payco
