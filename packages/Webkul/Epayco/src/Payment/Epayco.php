@@ -3,26 +3,26 @@
 namespace Webkul\Epayco\Payment;
 
 use Webkul\Payment\Payment\Payment;
+use Illuminate\Support\Facades\Storage;
 
 class Epayco extends Payment
 {
-    protected $code = 'epayco';
-
+    /**
+     * Payment method code
+     *
+     * @var string
+     */
+    protected $code  = 'epayco';
 
     public function getRedirectUrl()
     {
-        return route('epayco.standard.set-order');
+
     }
 
-    public function getOrder()
+    public function getImage()
     {
-        return $this->order;
-    }
+        $url = $this->getConfigData('image');
 
-    public function process()
-    {
-        // Handled by JS checkout, no server-side process needed
-        return true;
+        return $url ? Storage::url($url) : bagisto_asset('images/epayco.png', 'shop');
     }
 }
-

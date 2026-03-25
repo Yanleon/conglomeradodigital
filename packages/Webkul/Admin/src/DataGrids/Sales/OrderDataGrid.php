@@ -231,17 +231,5 @@ class OrderDataGrid extends DataGrid
                 },
             ]);
         }
-
-        if (bouncer()->hasPermission('sales.orders.delete')) {
-            $this->addAction([
-                'icon'         => 'icon-delete',
-                'title'        => trans('admin::app.acl.delete'),
-                'method'       => 'DELETE',
-                'url'          => function ($row) {
-                    return route('admin.sales.orders.delete', $row->id);
-                },
-                'confirm_text' => trans('admin::app.datagrid.massaction.delete', ['resource' => trans('admin::app.sales.orders.index.title')]),
-            ]);
-        }
     }
 }
