@@ -32,6 +32,10 @@ class EpaycoServiceProvider extends ServiceProvider
     public function register()
     {
         $this->registerConfig();
+
+        $this->app->singleton('epayco.service', function ($app) {
+            return new \Webkul\Epayco\Services\EpaycoService();
+        });
     }
 
     /**

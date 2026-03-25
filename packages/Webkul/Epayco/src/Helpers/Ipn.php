@@ -131,7 +131,7 @@ class Ipn
                 // se valida que la orden no haya sido procesada anteriormente
                 Log::info('Epayco IPN signature valid', ['order_id' => $numOrder]);
 
-                    $x_cod_response = (int) $this->post['x_cod_response'];
+                    $x_cod_response = $this->post['x_cod_response'];
 
                     $statusMap = [
                         1 => ["alert" => "success", "message" => "Transacción aceptada", "status" => "paid"],
@@ -140,20 +140,11 @@ class Ipn
                         4 => ["alert" => "error", "message" => "Transacción fallida", "status" => "canceled"]
                     ];
 
-                    $response = $statusMap[$x_cod_response] ?? [
+                    $response = $statusMap[(int)$x_cod_response] ?? [
                         "alert" => "error",
                         "message" => "Error en código de respuesta",
                         "status" => "pending"
                     ];
-
-                    // Si no es aprobada, eliminar la orden para que no cuente como venta
-                    if ($x_cod_response !== 1) {
-                        Log::warning('Epayco IPN no aprobado, eliminando orden', ['order_id' => $numOrder, 'cod' => $x_cod_response]);
-
-                        $this->orderRepository->delete($this->order->id);
-
-                        return response()->json($response);
-                    }
 
                     // Solo actualiza el estado si no es "paid"
                     if ($this->order->status !== "paid") {
@@ -164,28 +155,6 @@ class Ipn
                             $this->invoiceRepository->create($this->prepareInvoiceData(), null, $response["status"]);
                         }
                     }
-
-                    // Limpia y elimina carrito si estaba activo (IPN puede llegar antes que success)
-                    $cartRepo = app(\Webkul\Checkout\Repositories\CartRepository::class);
-
-                    // 1) Eliminar carrito activo
-                    $activeCart = Cart::getCart();
-                    if ($activeCart) {
-                        Cart::removeCart($activeCart);
-                    }
-
-                    // 2) Eliminar carrito asociado a la orden si es distinto
-                    $cartId = $this->order->cart_id ?? null;
-                    if ($cartId) {
-                        $cartModel = $cartRepo->find($cartId);
-                        if ($cartModel) {
-                            Cart::removeCart($cartModel);
-                        }
-                    }
-
-                    // 3) Forzar limpieza de sesión
-                    Cart::deActivateCart();
-                    session()->forget('cart');
 
                 return response()->json($response);
             }// end signature iif
