@@ -186,11 +186,19 @@ $invoice = $order->id;
                 'transaction_id' => $resp["data"]["x_ref_payco"] ?? $ref_payco
             ], $order->id);
 
+            // Limpia carrito
+            $cartId = $order->cart_id ?? null;
             Cart::deActivateCart();
+            session()->forget('cart');
+            if ($cartId) {
+                app(\Webkul\Checkout\Repositories\CartRepository::class)
+                    ->update(['is_active' => false], $cartId);
+            }
 
             session()->flash('order_id', $order->id);
 
-            return redirect()->route('shop.checkout.onepage.success');
+            return redirect()->route('shop.home.index')
+                ->with('success', 'Pago aprobado');
 
         } catch (RequestException $e) {
 
