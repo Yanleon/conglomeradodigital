@@ -165,14 +165,17 @@ class Ipn
                         }
                     }
 
-                    // Limpia carrito si estaba activo (IPN puede llegar antes que success)
+                    // Limpia y elimina carrito si estaba activo (IPN puede llegar antes que success)
                     $cartId = $this->order->cart_id ?? null;
+                    if ($cartId) {
+                        $cartRepo = app(\Webkul\Checkout\Repositories\CartRepository::class);
+                        $cartModel = $cartRepo->find($cartId);
+                        if ($cartModel) {
+                            Cart::removeCart($cartModel);
+                        }
+                    }
                     Cart::deActivateCart();
                     session()->forget('cart');
-                    if ($cartId) {
-                        app(\Webkul\Checkout\Repositories\CartRepository::class)
-                            ->update(['is_active' => false], $cartId);
-                    }
 
                 return response()->json($response);
             }// end signature iif
