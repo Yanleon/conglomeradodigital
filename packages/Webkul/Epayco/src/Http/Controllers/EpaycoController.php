@@ -80,10 +80,15 @@ class EpaycoController extends Controller
             : $billing->address;
 
         // 🔥 REFERENCIA ÚNICA
-$order = $this->createOrder();
-session(['epayco_order_id' => $order->id]);
-Log::info('Epayco order created early', ['order_id' => $order->id]);
-$invoice = $order->id;
+        $order = $this->createOrder();
+        session(['epayco_order_id' => $order->id]);
+        Log::info('Epayco order created early', ['order_id' => $order->id]);
+        $invoice = $order->id;
+
+        // Documento en formato string solo con dígitos
+        $rawDocument = $billing->vat_id ?? ($customer ? $customer->id : null);
+        $documentNumber = preg_replace('/\D/', '', (string) ($rawDocument ?? ''));
+        $documentNumber = $documentNumber !== '' ? $documentNumber : '123456789';
 
         $data = [
             'name' => $name_store . '#' . $invoice,
@@ -113,7 +118,7 @@ $invoice = $order->id;
             'address_billing' => $address,
 
             'type_doc_billing' => 'CC',
-            'number_doc_billing' => $customer->id ?? '123456789',
+            'number_doc_billing' => $documentNumber,
         ];
 
         Log::info('EPAYCO DATA', $data);
@@ -201,17 +206,11 @@ $invoice = $order->id;
 
         } catch (RequestException $e) {
 
-            Log::error('Epayco API error', ['error' => $e->getMessage()]);
-
             return redirect()->route('shop.checkout.cart.index')
                 ->with('error', 'Error verificando pago');
 
         } catch (\Exception $e) {
 
-            Log::error('Epayco general error', ['error' => $e->getMessage()]);
-
-            return redirect()->route('shop.checkout.cart.index')
-                ->with('error', 'Error inesperado');
         }
     }
 }
