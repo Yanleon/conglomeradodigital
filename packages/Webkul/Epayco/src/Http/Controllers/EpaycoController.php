@@ -79,8 +79,8 @@ class EpaycoController extends Controller
             ? implode(' ', $billing->address)
             : $billing->address;
 
-        // 🔥 REFERENCIA ÚNICA (usamos el carrito para no crear orden aún)
-        $reference = (string) ($cart->id ?? time());
+        // 🔥 REFERENCIA ÚNICA (evita referencias ya "Aceptadas" en ePayco)
+        $reference = sprintf('%s-%s', $cart->id ?? 'cart', now()->format('YmdHis'));
         session([
             'epayco_cart_id' => $cart->id,
             'epayco_reference' => $reference,
@@ -97,7 +97,8 @@ class EpaycoController extends Controller
             'name' => $name_store . '#' . $invoice,
             'description' => 'Compra en tienda',
             'invoice' => $invoice,
-            'extra1' => $reference,
+            // Guardamos el id de carrito en extra1 para trazabilidad (la referencia es única por intento)
+            'extra1' => $cart->id,
 
             'currency' => 'COP',
             'amount' => $cart->grand_total,
