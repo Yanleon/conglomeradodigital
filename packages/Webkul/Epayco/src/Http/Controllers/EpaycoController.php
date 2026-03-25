@@ -174,10 +174,8 @@ $invoice = $order->id;
 
                 Log::warning('Pago no aprobado', $resp);
 
-                $this->orderRepository->update([
-                    'status' => 'canceled'
-                ], $order->id);
-                Cart::deActivateCart();
+                // Eliminar la orden para que no aparezca en ventas cuando es rechazada/fallida
+                $this->orderRepository->delete($order->id);
 
                 return redirect()->route('shop.checkout.cart.index')
                     ->with('error', 'Pago no aprobado');

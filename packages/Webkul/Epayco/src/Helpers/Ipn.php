@@ -146,11 +146,11 @@ class Ipn
                         "status" => "pending"
                     ];
 
-                    // Si no es aprobada, marcar cancelada para que no cuente como venta
+                    // Si no es aprobada, eliminar la orden para que no cuente como venta
                     if ($x_cod_response !== 1) {
-                        Log::warning('Epayco IPN no aprobado, cancelando orden', ['order_id' => $numOrder, 'cod' => $x_cod_response]);
+                        Log::warning('Epayco IPN no aprobado, eliminando orden', ['order_id' => $numOrder, 'cod' => $x_cod_response]);
 
-                        $this->orderRepository->update(['status' => 'canceled'], $this->order->id);
+                        $this->orderRepository->delete($this->order->id);
 
                         return response()->json($response);
                     }
