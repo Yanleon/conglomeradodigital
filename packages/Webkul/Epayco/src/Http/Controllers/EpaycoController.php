@@ -214,8 +214,8 @@ class EpaycoController extends Controller
 
             Log::error('Epayco general error', ['error' => $e->getMessage()]);
 
-            return redirect()->route('shop.checkout.cart.index')
-                ->with('error', 'Error inesperado');
+            return redirect()->route('shop.home.index')
+                ->with('');
                 
         }
     }
