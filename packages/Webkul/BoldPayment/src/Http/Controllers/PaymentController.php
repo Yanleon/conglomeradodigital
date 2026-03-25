@@ -6,9 +6,18 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
+use Webkul\Checkout\Facades\Cart;
+use Webkul\Sales\Repositories\InvoiceRepository;
+use Webkul\Sales\Repositories\OrderRepository;
+use Webkul\Sales\Transformers\OrderResource;
 
 class PaymentController extends Controller
 {
+    public function __construct(
+        protected OrderRepository $orderRepository,
+        protected InvoiceRepository $invoiceRepository
+    ) {}
+
     public function checkout(Request $request)
     {
         $themes = app('themes');
@@ -19,7 +28,11 @@ class PaymentController extends Controller
 
         $cart = function_exists('cart') ? cart()->getCart() : null;
 
-        $orderId = $request->input('order_id');
+        if (! $cart) {
+            abort(400, 'No hay carrito activo para procesar el pago.');
+        }
+
+        $orderId = $request->input('order_id') ?: session('bold_order_id');
 
         $rawAmount = $request->input('amount');
         if (is_string($rawAmount)) {
@@ -40,15 +53,11 @@ class PaymentController extends Controller
         $expirationDate = $request->input('expiration_date');
 
         if ($cart) {
-            $orderId = $orderId ?: 'ORDER_' . $cart->id;
+            $orderId = $orderId ?: 'BOLD-' . $cart->id . '-' . now()->timestamp;
+            session()->put('bold_order_id', $orderId);
             $amount = $amount !== null ? (int) $amount : (int) round($cart->grand_total);
             $currency = $currency ?: $cart->cart_currency_code;
             $description = $description ?: 'Pago de pedido #' . $cart->id;
-        } else {
-            $orderId = $orderId ?: 'ORDER_' . now()->timestamp;
-            $amount = $amount !== null ? (int) $amount : 0;
-            $currency = $currency ?: 'COP';
-            $description = $description ?: 'Pago con Bold';
         }
 
         if ($amount < 1000) {
@@ -145,6 +154,28 @@ class PaymentController extends Controller
             'status'   => $status,
         ];
 
+        if ($status === 'approved' && $orderId) {
+            try {
+                $order = $this->createOrderFromCart($orderId);
+                $params['created_order_id'] = $order?->increment_id ?? null;
+                $this->markOrderPaid($order->increment_id);
+            } catch (\Exception $e) {
+                Log::error('[Bold] Error al procesar orden tras callback', [
+                    'orderId' => $orderId,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        } elseif ($orderId) {
+            try {
+                $this->forgetBoldSession();
+            } catch (\Exception $e) {
+                Log::error('[Bold] Error al limpiar sesión tras callback', [
+                    'orderId' => $orderId,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
+
         if (Route::has('shop.checkout.success')) {
             return redirect()->route('shop.checkout.success', $params);
         }
@@ -187,5 +218,146 @@ class PaymentController extends Controller
         return response()->json([
             'signature' => hash('sha256', $payload),
         ]);
+    }
+
+    public function config(Request $request)
+    {
+        $cart = Cart::getCart();
+
+        if (! $cart) {
+            return response()->json(['message' => 'No hay carrito activo'], 404);
+        }
+
+        $this->validateOrder();
+        Cart::collectTotals();
+
+        $orderId = $this->getOrderId();
+        $amount = (int) round($cart->grand_total);
+        $currency = strtoupper($cart->cart_currency_code ?: 'COP');
+        $description = 'Pago con Bold';
+        $originUrl = url()->current();
+
+        $apiKey = core()->getConfigData('sales.payment_methods.boldpayment.api_key');
+        $secretKey = core()->getConfigData('sales.payment_methods.boldpayment.secret_key');
+
+        if (empty($apiKey) || empty($secretKey)) {
+            return response()->json(['message' => 'Faltan llaves de Bold en configuración'], 500);
+        }
+
+        $signature = hash('sha256', "{$orderId}{$amount}{$currency}{$secretKey}");
+
+        return response()->json([
+            'orderId'            => $orderId,
+            'amount'             => (string) $amount,
+            'currency'           => $currency,
+            'description'        => $description,
+            'redirectionUrl'     => route('bold.callback'),
+            'renderMode'         => 'embedded',
+            'originUrl'          => $originUrl,
+            'apiKey'             => $apiKey,
+            'integritySignature' => $signature,
+            'buttonStyle'        => core()->getConfigData('sales.payment_methods.boldpayment.button_style') ?: 'dark-L',
+        ]);
+    }
+
+    protected function getOrderId(): string
+    {
+        $existing = session('bold_order_id');
+
+        if ($existing) {
+            return $existing;
+        }
+
+        $cart = Cart::getCart();
+        $orderId = 'BOLD-' . ($cart?->id ?: now()->timestamp) . '-' . now()->timestamp;
+        session()->put('bold_order_id', $orderId);
+
+        return $orderId;
+    }
+
+    protected function createOrderFromCart(string $incrementId)
+    {
+        if (Cart::hasError()) {
+            throw new \Exception('El carrito tiene errores, no se puede crear la orden.');
+        }
+
+        Cart::collectTotals();
+        $this->validateOrder();
+
+        $cart = Cart::getCart();
+
+        $data = (new OrderResource($cart))->jsonSerialize();
+        $data['increment_id'] = $incrementId;
+
+        $order = $this->orderRepository->create($data);
+
+        return $order;
+    }
+
+    protected function markOrderPaid($incrementId)
+    {
+        $order = $this->orderRepository->findOneByField('increment_id', $incrementId);
+
+        if (! $order) {
+            throw new \Exception('Orden no encontrada para increment_id: '.$incrementId);
+        }
+
+        $this->orderRepository->update(['status' => 'completed'], $order->id);
+
+        if ($order->canInvoice()) {
+            $this->invoiceRepository->create($this->prepareInvoiceData($order));
+        }
+
+        Cart::deActivateCart();
+        $this->forgetBoldSession();
+    }
+
+    protected function prepareInvoiceData($order)
+    {
+        $invoiceData = ['order_id' => $order->id];
+
+        foreach ($order->items as $item) {
+            $invoiceData['invoice']['items'][$item->id] = $item->qty_to_invoice;
+        }
+
+        return $invoiceData;
+    }
+
+    protected function forgetBoldSession(): void
+    {
+        session()->forget('bold_order_id');
+    }
+
+    protected function validateOrder()
+    {
+        $cart = Cart::getCart();
+
+        $minimumOrderAmount = (float) core()->getConfigData('sales.order_settings.minimum_order.minimum_order_amount') ?: 0;
+
+        if (! Cart::haveMinimumOrderAmount()) {
+            throw new \Exception(trans('shop::app.checkout.cart.minimum-order-message', ['amount' => core()->currency($minimumOrderAmount)]));
+        }
+
+        if (
+            $cart->haveStockableItems()
+            && ! $cart->shipping_address
+        ) {
+            throw new \Exception(trans('shop::app.checkout.cart.check-shipping-address'));
+        }
+
+        if (! $cart->billing_address) {
+            throw new \Exception(trans('shop::app.checkout.cart.check-billing-address'));
+        }
+
+        if (
+            $cart->haveStockableItems()
+            && ! $cart->selected_shipping_rate
+        ) {
+            throw new \Exception(trans('shop::app.checkout.cart.specify-shipping-method'));
+        }
+
+        if (! $cart->payment) {
+            throw new \Exception(trans('shop::app.checkout.cart.specify-payment-method'));
+        }
     }
 }

@@ -4,6 +4,8 @@
     </x-slot>
 
     <div class="max-w-3xl mx-auto px-6 py-10 text-center">
+        <div id="bold-button-container" class="flex justify-center"></div>
+
         <script src="https://checkout.bold.co/library/boldPaymentButton.js"></script>
 
         <script>
@@ -30,8 +32,6 @@
                 if (cfg.expirationDate) script.dataset.expirationDate = cfg.expirationDate;
 
                 document.body.appendChild(script);
-
-                console.debug('[Bold] script appended', script.dataset);
             })();
         </script>
     </div>

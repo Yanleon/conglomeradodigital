@@ -3,6 +3,7 @@
 namespace Webkul\BoldPayment\Payment;
 
 use Webkul\Payment\Payment\Payment;
+use Illuminate\Support\Facades\Storage;
 
 class BoldPayment extends Payment
 {
@@ -34,5 +35,16 @@ class BoldPayment extends Payment
     public function getDescription()
     {
         return core()->getConfigData('sales.payment_methods.boldpayment.description') ?: 'Paga de forma segura con Bold.';
+    }
+
+    public function getImage()
+    {
+        $uploaded = $this->getConfigData('image');
+
+        if ($uploaded) {
+            return Storage::url($uploaded);
+        }
+
+        return asset('vendor/boldpayment/bold-logo.svg');
     }
 }

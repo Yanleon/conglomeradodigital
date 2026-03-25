@@ -49,6 +49,14 @@ return [
                 'info' => 'Combinacion color/tamano: dark|light con S|M|L, ej. dark-M.',
             ],
             [
+                'name' => 'image',
+                'title' => 'Logo',
+                'type' => 'image',
+                'channel_based' => false,
+                'locale_based' => false,
+                'info' => 'Sube el logo que se mostrará en el checkout. Sugerido: 140x60 px, PNG/SVG con fondo transparente.',
+            ],
+            [
                 'name' => 'active',
                 'title' => 'Activo',
                 'type' => 'boolean',
