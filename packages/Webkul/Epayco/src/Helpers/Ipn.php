@@ -3,8 +3,10 @@
 namespace Webkul\Epayco\Helpers;
 
 use Illuminate\Support\Facades\Log;
+use Webkul\Checkout\Facades\Cart;
 use Webkul\Sales\Repositories\InvoiceRepository;
 use Webkul\Sales\Repositories\OrderRepository;
+use Webkul\Sales\Transformers\OrderResource;
 
 class Ipn
 {
@@ -91,8 +93,27 @@ class Ipn
      */
     protected function getOrder()
     {
-        $this->order = $this->orderRepository->findOneByField(['id' => $this->post['x_id_invoice']]);
-        Log::info('Epayco IPN looking for order', ['x_id_invoice' => $this->post['x_id_invoice'], 'found' => $this->order ? $this->order->id : null]);
+        $invoiceId = $this->post['x_id_invoice'] ?? null;
+        $refPayco  = $this->post['x_ref_payco'] ?? null;
+
+        // 1) Buscar por ID de orden (para flujos antiguos)
+        if ($invoiceId) {
+            $this->order = $this->orderRepository->findOneByField(['id' => $invoiceId]);
+        }
+
+        // 2) Buscar por transaction_id (si ya se creó en success)
+        if (! $this->order && $refPayco) {
+            $this->order = $this->orderRepository->findOneByField(['transaction_id' => $refPayco]);
+        }
+
+        // 3) Podríamos crear luego desde el carrito (x_extra1) si está aprobado
+
+        Log::info('Epayco IPN looking for order', [
+            'x_id_invoice' => $invoiceId,
+            'x_ref_payco' => $refPayco,
+            'found' => $this->order ? $this->order->id : null
+        ]);
+
         return $this->order;
     }
 
@@ -110,56 +131,125 @@ class Ipn
         Log::info('Epayco IPN processing order', ['order_id' => $this->order->id]);
 
         $response = [];
+
         $x_ref_payco      = $this->post['x_ref_payco'];
         $x_transaction_id = $this->post['x_transaction_id'];
-        $x_amount         = (int)$this->post['x_amount'];
+        $x_amount         = (int) $this->post['x_amount'];
         $x_currency_code  = $this->post['x_currency_code'];
         $x_signature      = $this->post['x_signature'];
+        $x_cod_response   = (int) ($this->post['x_cod_response'] ?? 0);
+        $x_extra1_cart_id = $this->post['x_extra1'] ?? null; // cart id que enviamos
 
         $signature = hash('sha256', $this->cust_id_client . '^' . $this->p_key . '^' . $x_ref_payco . '^' . $x_transaction_id . '^' . $x_amount . '^' . $x_currency_code);
 
-        $numOrder = $this->order->id;
-        $valueOrder = (int)round($this->order->grand_total);
+        // Si no hay orden y el pago está aprobado, intentamos crearla desde el carrito
+        if (! $this->order && $x_cod_response === 1 && $x_extra1_cart_id) {
+            $createdOrder = $this->createOrderFromCartId((int) $x_extra1_cart_id);
+            if ($createdOrder) {
+                $this->order = $createdOrder;
+                Log::info('Epayco IPN creó orden desde carrito', ['order_id' => $this->order->id, 'cart_id' => $x_extra1_cart_id]);
+            } else {
+                Log::error('Epayco IPN no pudo crear orden desde carrito', ['cart_id' => $x_extra1_cart_id]);
+            }
+        }
 
-        $x_response     = $this->post['x_response'] == 'Aceptada' ? "paid" : $this->post['x_response'];
-        $x_id_invoice   = (int)$this->post['x_id_invoice'];
+        // Sin orden y pago no aprobado: solo respondemos
+        if (! $this->order && $x_cod_response !== 1) {
+            Log::warning('Epayco IPN sin orden para estado no aprobado', ['cart_id' => $x_extra1_cart_id, 'cod' => $x_cod_response]);
+            return response()->json([
+                'alert' => 'error',
+                'message' => 'Sin orden asociada para este estado',
+                'status' => 'pending_payment'
+            ], 202);
+        }
 
-        // se valida que el número de orden y el valor coincidan con los valores recibidos
-        if ($x_id_invoice === $numOrder && $x_amount === $valueOrder) {
-            //Validamos la firma
-            if ($x_signature == $signature) {
-                // se valida que la orden no haya sido procesada anteriormente
-                Log::info('Epayco IPN signature valid', ['order_id' => $numOrder]);
+        // Si sigue sin orden (caso raro aprobado y sin carrito válido)
+        if (! $this->order) {
+            Log::error('Epayco IPN no encontró ni creó orden', ['cart_id' => $x_extra1_cart_id, 'cod' => $x_cod_response]);
+            return response()->json([
+                'alert' => 'error',
+                'message' => 'Orden no encontrada'
+            ], 404);
+        }
 
-                    $x_cod_response = $this->post['x_cod_response'];
+        $numOrder   = $this->order->id;
+        $valueOrder = (int) round($this->order->grand_total);
 
-                    $statusMap = [
-                        1 => ["alert" => "success", "message" => "Transacción aceptada", "status" => "paid"],
-                        2 => ["alert" => "error", "message" => "Transacción rechazada", "status" => "canceled"],
-                        3 => ["alert" => "warning", "message" => "Transacción pendiente", "status" => "pending_payment"],
-                        4 => ["alert" => "error", "message" => "Transacción fallida", "status" => "canceled"]
-                    ];
+        // Se valida firma y montos
+        if ($x_signature != $signature) {
+            Log::error('Epayco IPN firma inválida', ['order_id' => $numOrder]);
+            return response()->json([
+                'alert' => 'error',
+                'message' => 'Firma inválida'
+            ], 400);
+        }
 
-                    $response = $statusMap[(int)$x_cod_response] ?? [
-                        "alert" => "error",
-                        "message" => "Error en código de respuesta",
-                        "status" => "pending"
-                    ];
+        if ($x_amount !== $valueOrder) {
+            Log::error('Epayco IPN monto no coincide', ['order_id' => $numOrder, 'gateway' => $x_amount, 'order' => $valueOrder]);
+            return response()->json([
+                'alert' => 'error',
+                'message' => 'Monto no coincide'
+            ], 400);
+        }
 
-                    // Solo actualiza el estado si no es "paid"
-                    if ($this->order->status !== "paid") {
-                        $this->orderRepository->update(['status' => $response["status"]], $this->order->id);
+        Log::info('Epayco IPN signature valid', ['order_id' => $numOrder]);
 
-                        // Lógica adicional si el nuevo estado es "paid"
-                        if ($response["status"] === "paid" && $x_response === "paid" && $this->order->canInvoice()) {
-                            $this->invoiceRepository->create($this->prepareInvoiceData(), null, $response["status"]);
-                        }
-                    }
+        $statusMap = [
+            1 => ["alert" => "success", "message" => "Transacción aceptada", "status" => "processing"],
+            2 => ["alert" => "error", "message" => "Transacción rechazada", "status" => "canceled"],
+            3 => ["alert" => "warning", "message" => "Transacción pendiente", "status" => "pending_payment"],
+            4 => ["alert" => "error", "message" => "Transacción fallida", "status" => "canceled"],
+        ];
 
-                return response()->json($response);
-            }// end signature iif
-        }//-- end validation order
+        $response = $statusMap[$x_cod_response] ?? [
+            "alert" => "error",
+            "message" => "Error en código de respuesta",
+            "status" => "pending_payment"
+        ];
+
+        // Actualiza estado y transacción
+        $this->orderRepository->update([
+            'status' => $response['status'],
+            'transaction_id' => $x_ref_payco,
+        ], $this->order->id);
+
+        // Si aprobado y puede facturar, crear invoice
+        if ($response['status'] === 'processing' && $this->order->canInvoice()) {
+            $this->invoiceRepository->create($this->prepareInvoiceData(), null, $response['status']);
+        }
+
+        // Desactiva carrito si lo teníamos activo
+        if (session()->has('cart')) {
+            Cart::deActivateCart();
+        }
+
+        return response()->json($response);
     }//-- end processOrder
+
+    /**
+     * Crea orden desde un carrito dado su ID.
+     */
+    protected function createOrderFromCartId(?int $cartId)
+    {
+        if (! $cartId) {
+            return null;
+        }
+
+        Cart::activateCart($cartId);
+        $cart = Cart::getCart();
+
+        if (! $cart) {
+            return null;
+        }
+
+        $data = (new OrderResource($cart))->jsonSerialize();
+
+        $order = $this->orderRepository->create($data);
+
+        Cart::deActivateCart();
+
+        return $order;
+    }
 
     /**
      * Prepares order's invoice data for creation.
