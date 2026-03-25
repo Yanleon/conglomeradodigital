@@ -168,9 +168,20 @@ class EpaycoController extends Controller
 
             // Reactiva el carrito si no está cargado (evita perder la venta en reintentos)
             $cart = Cart::getCart();
+
+            // Primero intenta con sesión
             if (! $cart && session()->has('epayco_cart_id')) {
                 Cart::activateCart((int) session('epayco_cart_id'));
                 $cart = Cart::getCart();
+            }
+
+            // Luego intenta con el dato retornado por ePayco (x_extra1 = cart id enviado)
+            if (! $cart) {
+                $cartIdFromGateway = $resp['data']['x_extra1'] ?? null;
+                if ($cartIdFromGateway) {
+                    Cart::activateCart((int) $cartIdFromGateway);
+                    $cart = Cart::getCart();
+                }
             }
 
             if (! $cart) {
