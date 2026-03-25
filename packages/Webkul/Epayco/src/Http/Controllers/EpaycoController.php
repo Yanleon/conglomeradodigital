@@ -79,11 +79,14 @@ class EpaycoController extends Controller
             ? implode(' ', $billing->address)
             : $billing->address;
 
-        // 🔥 REFERENCIA ÚNICA
-        $order = $this->createOrder();
-        session(['epayco_order_id' => $order->id]);
-        Log::info('Epayco order created early', ['order_id' => $order->id]);
-        $invoice = $order->id;
+        // 🔥 REFERENCIA ÚNICA (usamos el carrito para no crear orden aún)
+        $reference = (string) ($cart->id ?? time());
+        session([
+            'epayco_cart_id' => $cart->id,
+            'epayco_reference' => $reference,
+        ]);
+        Log::info('Epayco checkout reference created', ['reference' => $reference]);
+        $invoice = $reference;
 
         // Documento en formato string solo con dígitos
         $rawDocument = $billing->vat_id ?? ($customer ? $customer->id : null);
@@ -94,7 +97,7 @@ class EpaycoController extends Controller
             'name' => $name_store . '#' . $invoice,
             'description' => 'Compra en tienda',
             'invoice' => $invoice,
-            'extra1' => $order->id, // Bagisto order ID for IPN
+            'extra1' => $reference,
 
             'currency' => 'COP',
             'amount' => $cart->grand_total,
@@ -123,9 +126,7 @@ class EpaycoController extends Controller
 
         Log::info('EPAYCO DATA', $data);
 
-        $responseData = array_merge($data, ['bagisto_order_id' => $order->id]);
-
-        return response()->json($responseData);
+        return response()->json($data);
     }
 
     /**
@@ -164,35 +165,21 @@ class EpaycoController extends Controller
 
             Log::info('EPAYCO RESPONSE', $resp);
 
-            // 🔥 Get or create order (idempotent)
-            $orderId = session('epayco_order_id');
-            if ($orderId) {
-                $order = $this->orderRepository->find($orderId);
-                if (!$order) {
-                    Log::warning('Epayco session order not found, creating fallback');
-                    $order = $this->createOrder();
-                }
-            } else {
-                $order = $this->createOrder();
-            }
-            session()->forget('epayco_order_id');
-            Log::info('Epayco success using order', ['order_id' => $order->id]);
-
             // ❌ Pago no aprobado
             if (!isset($resp["data"]["x_cod_response"]) || $resp["data"]["x_cod_response"] != 1) {
 
                 Log::warning('Pago no aprobado', $resp);
 
-                $this->orderRepository->update([
-                    'status' => 'canceled'
-                ], $order->id);
-                Cart::deActivateCart();
+                session()->forget(['epayco_cart_id', 'epayco_reference']);
 
                 return redirect()->route('shop.checkout.cart.index')
                     ->with('error', 'Pago no aprobado');
             }
 
             // ✅ Pago aprobado
+            $order = $this->createOrder();
+            Log::info('Epayco success creating order after approval', ['order_id' => $order->id]);
+
             $this->orderRepository->update([
                 'status' => 'processing',
                 'transaction_id' => $resp["data"]["x_ref_payco"] ?? $ref_payco
@@ -202,17 +189,24 @@ class EpaycoController extends Controller
 
             session()->flash('order_id', $order->id);
 
-            return redirect()->route('shop.checkout.onepage.success');
+            session()->forget(['epayco_cart_id', 'epayco_reference']);
+
+            return redirect()->route('shop.home.index')
+                ->with('success', 'Pago aprobado');
 
         } catch (RequestException $e) {
+
+            Log::error('Epayco API error', ['error' => $e->getMessage()]);
 
             return redirect()->route('shop.checkout.cart.index')
                 ->with('error', 'Error verificando pago');
 
         } catch (\Exception $e) {
 
-        return redirect()->route('shop.checkout.cart.index')
-                ->with('');
+            Log::error('Epayco general error', ['error' => $e->getMessage()]);
+
+            return redirect()->route('shop.checkout.cart.index')
+                ->with('error', 'Error inesperado');
                 
         }
     }
