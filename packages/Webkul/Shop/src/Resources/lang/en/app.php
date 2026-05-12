@@ -442,6 +442,10 @@ return [
                 'subscribe-stay-touch'   => 'Subscribe to stay in touch.',
                 'whats-new'              => 'What’s New',
             ],
+
+            'popup-widget' => [
+                'dont-show-again' => "Don't show again",
+            ],
         ],
 
         'datagrid' => [

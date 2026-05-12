@@ -22,7 +22,7 @@ class ThemeCustomization
      */
     public function afterCreate($themeCustomization)
     {
-        if (in_array($themeCustomization->type, ['footer_links', 'services_content'])) {
+        if (in_array($themeCustomization->type, ['footer_links', 'services_content', 'footer_content', 'popup_widget'])) {
             ResponseCache::clear();
         } else {
             ResponseCache::selectCachedItems()
@@ -39,7 +39,7 @@ class ThemeCustomization
      */
     public function afterUpdate($themeCustomization)
     {
-        if (in_array($themeCustomization->type, ['footer_links', 'services_content'])) {
+        if (in_array($themeCustomization->type, ['footer_links', 'services_content', 'footer_content', 'popup_widget'])) {
             ResponseCache::clear();
         } else {
             ResponseCache::selectCachedItems()
@@ -58,7 +58,7 @@ class ThemeCustomization
     {
         $themeCustomization = $this->themeCustomizationRepository->find($themeCustomizationId);
 
-        if (in_array($themeCustomization->type, ['footer_links', 'services_content'])) {
+        if (in_array($themeCustomization->type, ['footer_links', 'services_content', 'footer_content', 'popup_widget'])) {
             ResponseCache::clear();
         } else {
             ResponseCache::selectCachedItems()

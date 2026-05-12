@@ -4,6 +4,7 @@ namespace Webkul\Admin\DataGrids\Catalog;
 
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Webkul\Attribute\Repositories\AttributeFamilyRepository;
 use Webkul\Core\Facades\ElasticSearch;
 use Webkul\DataGrid\DataGrid;
@@ -38,6 +39,7 @@ class ProductDataGrid extends DataGrid
          */
         $queryBuilder = DB::table('product_flat')
             ->distinct()
+            ->leftJoin('products as p', 'product_flat.product_id', '=', 'p.id')
             ->leftJoin('attribute_families as af', 'product_flat.attribute_family_id', '=', 'af.id')
             ->leftJoin('product_inventories', 'product_flat.product_id', '=', 'product_inventories.product_id')
             ->leftJoin('product_images', 'product_flat.product_id', '=', 'product_images.product_id')
@@ -60,12 +62,26 @@ class ProductDataGrid extends DataGrid
                 'product_flat.price',
                 'product_flat.url_key',
                 'product_flat.visible_individually',
+                'p.parent_id as parent_product_id',
                 'af.name as attribute_family',
             )
             ->addSelect(DB::raw('SUM(DISTINCT '.$tablePrefix.'product_inventories.qty) as quantity'))
             ->addSelect(DB::raw('COUNT(DISTINCT '.$tablePrefix.'product_images.id) as images_count'))
+            ->addSelect(DB::raw('(
+                SELECT MIN(child_flat.price)
+                FROM '.$tablePrefix.'products as child_products
+                INNER JOIN '.$tablePrefix.'product_flat as child_flat ON child_flat.product_id = child_products.id
+                WHERE child_products.parent_id = product_flat.product_id
+                AND child_flat.locale = product_flat.locale
+                AND child_flat.channel = product_flat.channel
+            ) as min_variant_price'))
+            ->addSelect(DB::raw('(SELECT COUNT(*) FROM '.$tablePrefix.'products as variants WHERE variants.parent_id = product_flat.product_id) as variants_count'))
             ->where('product_flat.locale', app()->getLocale())
             ->groupBy('product_flat.product_id');
+
+        if (! request()->boolean('show_variants')) {
+            $queryBuilder->whereNull('p.parent_id');
+        }
 
         $this->addFilter('product_id', 'product_flat.product_id');
         $this->addFilter('channel', 'product_flat.channel');
@@ -73,7 +89,20 @@ class ProductDataGrid extends DataGrid
         $this->addFilter('name', 'product_flat.name');
         $this->addFilter('type', 'product_flat.type');
         $this->addFilter('status', 'product_flat.status');
+        $this->addFilter('parent_product_id', 'p.parent_id');
         $this->addFilter('attribute_family', 'af.id');
+
+        if (request()->get('stock') === 'low') {
+            $queryBuilder->havingRaw('SUM(DISTINCT '.$tablePrefix.'product_inventories.qty) BETWEEN 1 AND 5');
+        }
+
+        if (request()->get('stock') === 'out') {
+            $queryBuilder->havingRaw('SUM(DISTINCT '.$tablePrefix.'product_inventories.qty) <= 0');
+        }
+
+        if (in_array(request()->get('sort_price'), ['asc', 'desc'])) {
+            $queryBuilder->orderBy('product_flat.price', request()->get('sort_price'));
+        }
 
         return $queryBuilder;
     }
@@ -104,10 +133,9 @@ class ProductDataGrid extends DataGrid
         }
 
         $this->addColumn([
-            'index'      => 'name',
-            'label'      => trans('admin::app.catalog.products.index.datagrid.name'),
-            'type'       => 'string',
-            'searchable' => true,
+            'index'      => 'product_id',
+            'label'      => trans('admin::app.catalog.products.index.datagrid.id'),
+            'type'       => 'integer',
             'filterable' => true,
             'sortable'   => true,
         ]);
@@ -121,18 +149,41 @@ class ProductDataGrid extends DataGrid
         ]);
 
         $this->addColumn([
+            'index'      => 'name',
+            'label'      => trans('admin::app.catalog.products.index.datagrid.name'),
+            'type'       => 'string',
+            'searchable' => true,
+            'filterable' => true,
+            'sortable'   => true,
+        ]);
+
+        $this->addColumn([
             'index'              => 'attribute_family',
             'label'              => trans('admin::app.catalog.products.index.datagrid.attribute-family'),
             'type'               => 'string',
             'filterable'         => true,
             'filterable_type'    => 'dropdown',
             'filterable_options' => $this->attributeFamilyRepository->all(['name as label', 'id as value'])->toArray(),
+            'visibility'         => false,
         ]);
 
         $this->addColumn([
             'index'      => 'base_image',
             'label'      => trans('admin::app.catalog.products.index.datagrid.image'),
             'type'       => 'string',
+            'closure'    => function ($row) {
+                if (request('view') !== 'table') {
+                    return $row->base_image;
+                }
+
+                if (empty($row->base_image)) {
+                    return '<span class="text-xs text-gray-400">N/A</span>';
+                }
+
+                $url = Storage::url($row->base_image);
+
+                return '<img src="'.$url.'" alt="product" class="h-16 w-16 rounded object-cover" />';
+            },
         ]);
 
         $this->addColumn([
@@ -144,17 +195,16 @@ class ProductDataGrid extends DataGrid
         ]);
 
         $this->addColumn([
-            'index'      => 'quantity',
-            'label'      => trans('admin::app.catalog.products.index.datagrid.qty'),
-            'type'       => 'integer',
-            'sortable'   => true,
+            'index'      => 'min_variant_price',
+            'label'      => 'Min Variant Price',
+            'type'       => 'string',
+            'visibility' => false,
         ]);
 
         $this->addColumn([
-            'index'      => 'product_id',
-            'label'      => trans('admin::app.catalog.products.index.datagrid.id'),
+            'index'      => 'quantity',
+            'label'      => trans('admin::app.catalog.products.index.datagrid.qty'),
             'type'       => 'integer',
-            'filterable' => true,
             'sortable'   => true,
         ]);
 
@@ -164,6 +214,7 @@ class ProductDataGrid extends DataGrid
             'type'       => 'boolean',
             'filterable' => true,
             'sortable'   => true,
+            'visibility' => false,
         ]);
 
         $this->addColumn([
@@ -216,6 +267,17 @@ class ProductDataGrid extends DataGrid
                         'id'      => $row->product_id,
                         'channel' => $filteredChannel,
                     ]);
+                },
+            ]);
+        }
+
+        if (bouncer()->hasPermission('catalog.products.delete')) {
+            $this->addAction([
+                'icon'   => 'icon-delete',
+                'title'  => trans('admin::app.catalog.products.index.datagrid.delete'),
+                'method' => 'DELETE',
+                'url'    => function ($row) {
+                    return route('admin.catalog.products.delete', $row->product_id);
                 },
             ]);
         }

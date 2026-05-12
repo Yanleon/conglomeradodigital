@@ -59,6 +59,7 @@ it('should store the newly created theme', function () {
             'image_carousel',
             'footer_links',
             'services_content',
+            'footer_content',
         ]),
         'name'       => $name = fake()->name(),
         'sort_order' => $lastThemeId,
@@ -167,6 +168,30 @@ it('should update the theme customizations', function () {
                         'description'  => fake()->paragraph(),
                         'service_icon' => 'icon-truck',
                     ],
+                ],
+            ];
+
+            break;
+
+        case ThemeCustomization::FOOTER_CONTENT:
+            $data[app()->getLocale()] = [
+                'options' => [
+                    'show_logo'       => '1',
+                    'about_heading'   => fake()->sentence(3),
+                    'about_text'      => fake()->sentence(12),
+                    'show_contacts'   => '1',
+                    'contacts'        => [
+                        [
+                            'label'      => 'Email',
+                            'value'      => fake()->email(),
+                            'url'        => 'mailto:'.fake()->email(),
+                            'sort_order' => '1',
+                        ],
+                    ],
+                    'show_links'      => '1',
+                    'show_newsletter' => '1',
+                    'show_social'     => '1',
+                    'bottom_text'     => 'Copyright',
                 ],
             ];
 

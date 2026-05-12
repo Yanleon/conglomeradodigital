@@ -3,6 +3,7 @@
 namespace Webkul\Admin\Http\Controllers\Catalog;
 
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Webkul\Admin\DataGrids\Catalog\ProductDataGrid;
@@ -56,7 +57,33 @@ class ProductController extends Controller
 
         $families = $this->attributeFamilyRepository->all();
 
-        return view('admin::catalog.products.index', compact('families'));
+        $kpis = DB::table('product_flat')
+            ->selectRaw('COUNT(DISTINCT product_id) as total_products')
+            ->selectRaw('COUNT(DISTINCT CASE WHEN status = 1 THEN product_id END) as active_products')
+            ->selectRaw("COUNT(DISTINCT CASE WHEN status = 0 AND (name IS NULL OR name = '') THEN product_id END) as draft_products")
+            ->first();
+
+        $inventoryTotals = DB::table('product_inventories')
+            ->select('product_id', DB::raw('SUM(COALESCE(qty, 0)) as total_qty'))
+            ->groupBy('product_id');
+
+        $lowStockProducts = DB::table('product_flat')
+            ->leftJoinSub($inventoryTotals, 'inventory_totals', function ($join) {
+                $join->on('product_flat.product_id', '=', 'inventory_totals.product_id');
+            })
+            ->whereNotIn('product_flat.type', ['configurable', 'bundle', 'grouped'])
+            ->whereBetween(DB::raw('COALESCE(inventory_totals.total_qty, 0)'), [1, 5])
+            ->distinct('product_flat.product_id')
+            ->count('product_flat.product_id');
+
+        $kpiStats = [
+            'total'     => (int) ($kpis->total_products ?? 0),
+            'active'    => (int) ($kpis->active_products ?? 0),
+            'low_stock' => (int) $lowStockProducts,
+            'draft'     => (int) ($kpis->draft_products ?? 0),
+        ];
+
+        return view('admin::catalog.products.index', compact('families', 'kpiStats'));
     }
 
     /**

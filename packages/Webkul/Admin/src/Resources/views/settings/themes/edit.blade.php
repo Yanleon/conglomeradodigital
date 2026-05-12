@@ -102,6 +102,12 @@
 
                 <!-- Services-content Template -->
                 @includeWhen($theme->type === 'services_content', 'admin::settings.themes.edit.services-content')
+
+                <!-- Footer-content Template -->
+                @includeWhen($theme->type === 'footer_content', 'admin::settings.themes.edit.footer-content')
+
+                <!-- Popup-widget Template -->
+                @includeWhen($theme->type === 'popup_widget', 'admin::settings.themes.edit.popup-widget')
             </div>
 
             <!-- General -->

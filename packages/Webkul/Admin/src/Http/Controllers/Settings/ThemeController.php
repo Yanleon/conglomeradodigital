@@ -52,7 +52,7 @@ class ThemeController extends Controller
         $validated = $this->validate(request(), [
             'name'       => 'required',
             'sort_order' => 'required|numeric',
-            'type'       => 'required|in:product_carousel,category_carousel,static_content,image_carousel,footer_links,services_content',
+            'type'       => 'required|in:product_carousel,category_carousel,static_content,image_carousel,footer_links,services_content,footer_content,popup_widget',
             'channel_id' => 'required|in:'.implode(',', (core()->getAllChannels()->pluck('id')->toArray())),
             'theme_code' => 'required',
         ]);
@@ -90,12 +90,22 @@ class ThemeController extends Controller
         $this->validate(request(), [
             'name'       => 'required',
             'sort_order' => 'required|numeric',
-            'type'       => 'required|in:product_carousel,category_carousel,static_content,image_carousel,footer_links,services_content',
+            'type'       => 'required|in:product_carousel,category_carousel,static_content,image_carousel,footer_links,services_content,footer_content,popup_widget',
             'channel_id' => 'required|in:'.implode(',', (core()->getAllChannels()->pluck('id')->toArray())),
             'theme_code' => 'required',
         ]);
 
         $locale = request('locale');
+
+        // Footer content logo upload.
+        $this->validate(request(), [
+            $locale.'.options.logo_file' => 'nullable|image|extensions:jpeg,jpg,png,svg,webp',
+        ]);
+
+        // Popup widget banner upload.
+        $this->validate(request(), [
+            $locale.'.options.banner_file' => 'nullable|image|extensions:jpeg,jpg,png,svg,webp',
+        ]);
 
         $data = request()->only(
             'locale',

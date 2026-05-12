@@ -183,6 +183,9 @@
             <!-- Confirm Modal Blade Component -->
             <x-shop::modal.confirm />
 
+            <!-- Promotion Popup Widget -->
+            <x-shop::popup-widget />
+
             <!-- Page Header Blade Component -->
             @if ($hasHeader)
                 <x-shop::layouts.header />

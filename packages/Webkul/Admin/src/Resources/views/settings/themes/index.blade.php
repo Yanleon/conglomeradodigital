@@ -198,6 +198,8 @@
                             image_carousel: "@lang('admin::app.settings.themes.create.type.image-carousel')",
                             footer_links: "@lang('admin::app.settings.themes.create.type.footer-links')",
                             services_content: "@lang('admin::app.settings.themes.create.type.services-content')",
+                            footer_content: "@lang('admin::app.settings.themes.create.type.footer-content')",
+                            popup_widget: "@lang('admin::app.settings.themes.create.type.popup-widget')",
                         }
                     };
                 },

@@ -311,14 +311,14 @@
                                     class="grid grid-cols-[1fr] gap-3"
                                     v-if="secondLevelCategory.children.length"
                                 >
-                                    <li
-                                        class="text-sm font-medium text-zinc-500"
-                                        v-for="thirdLevelCategory in secondLevelCategory.children"
-                                    >
-                                        <a :href="thirdLevelCategory.url">
-                                            @{{ thirdLevelCategory.name }}
-                                        </a>
-                                    </li>
+                                     <li
+                                         class="text-sm font-medium text-zinc-500 ltr:pl-3 rtl:pr-3 ltr:border-l ltr:border-zinc-100 rtl:border-r rtl:border-zinc-100"
+                                         v-for="thirdLevelCategory in secondLevelCategory.children"
+                                     >
+                                         <a :href="thirdLevelCategory.url">
+                                             @{{ thirdLevelCategory.name }}
+                                         </a>
+                                     </li>
                                 </ul>
                             </template>
                         </div>

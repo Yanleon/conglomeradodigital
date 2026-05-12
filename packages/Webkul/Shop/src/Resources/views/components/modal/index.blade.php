@@ -3,7 +3,7 @@
 ])
 
 <v-modal
-    is-active="{{ $isActive }}"
+    :is-active="@json((bool) $isActive)"
     {{ $attributes }}
 >
     @isset($toggle)

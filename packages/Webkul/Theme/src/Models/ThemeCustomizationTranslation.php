@@ -60,6 +60,20 @@ class ThemeCustomizationTranslation extends Model implements ThemeCustomizationT
     public const SERVICES_CONTENT = 'services_content';
 
     /**
+     * Footer content (builder).
+     *
+     * @var string
+     */
+    public const FOOTER_CONTENT = 'footer_content';
+
+    /**
+     * Promotion popup widget.
+     *
+     * @var string
+     */
+    public const POPUP_WIDGET = 'popup_widget';
+
+    /**
      * Castable.
      *
      * @var array

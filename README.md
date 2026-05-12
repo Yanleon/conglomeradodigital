@@ -8,6 +8,8 @@ Estamos encantados de que formes parte de nuestra comunidad. Con nuestra platafo
 - **Epayco**: integración nativa con Smart Button, manejo de IPN y configuración de URLs de respuesta/confirmación y llaves (cust_id_client, p_key, public_key) desde Configuración → Métodos de pago.
 - **Checkout en un paso**: botones dedicados por método (PayPal, Epayco y Bold) para reducir fricción en el cierre de compra.
 - **Reporte de cupones**: nueva vista Marketing → Promociones → Usos de cupones con filtros y exportación, traducida al español.
+- **Footer administrable**: nuevo `footer_content` en Theme Customization para editar logo, textos, títulos, colores y texto inferior con placeholders de año.
+- **Popup promocional administrable**: nuevo `popup_widget` en Theme Customization con reglas por fecha/página/frecuencia, soporte Imagen+Enlace y HTML+CSS, cierre por X/overlay/autocierre y opción "No mostrar de nuevo".
 
 ## 📚 Documentación detallada
 - [Visión general](docs/overview.md)
@@ -16,9 +18,15 @@ Estamos encantados de que formes parte de nuestra comunidad. Con nuestra platafo
 - [Pagos: Bold y Epayco](docs/payments.md)
 - [Funcionalidades clave](docs/features.md)
 - [Guía para administradores](docs/admin-guide.md)
+- [Rediseño Admin de Productos](docs/admin-products-redesign.md)
 - [Despliegue](docs/deploy.md)
 - [Solución de problemas](docs/troubleshooting.md)
 - [Changelog desde 2.0](docs/changelog.md)
+
+### Atajos para Footer y Popup
+- [Configuración funcional (features)](docs/features.md)
+- [Paso a paso en Admin](docs/admin-guide.md)
+- [Problemas comunes y validaciones](docs/troubleshooting.md)
 
 ## 📌 Tus datos de acceso
 - **URL de acceso:** https://tudominio.com/admin 
@@ -99,3 +107,9 @@ ln -s storage/app/public public/storage
 ---
 
 ✅ ¡Listo! Ahora puedes proceder con la configuración final y el despliegue de la aplicación. 🚀
+
+## 🛍️ Rediseño del Admin de Productos
+
+La documentación completa del rediseño aplicado en la vista de productos del admin está en:
+
+- `docs/admin-products-redesign.md`
